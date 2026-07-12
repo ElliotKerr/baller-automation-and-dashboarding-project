@@ -20,6 +20,7 @@ from sqlalchemy import create_engine
 import time
 import pandas as pd
 
+from utils.general import clean_staging, _merge
 from utils.competitions import Competitions
 from utils.matches import Matches
 from utils.events import Events
@@ -31,80 +32,17 @@ comp = Competitions()
 match = Matches()
 event = Events()
 
-def _merge(cursor, connection, _class, table):
-    _fields = list(_class.column_mapping.keys())
-
-    _merge_fields = [f for f in _fields]
-
-    _cols_str = ", ".join(f'"{c}"' for c in _merge_fields)
-    _conflict_keys_str = ", ".join(_class.composite_keys)
-
-    # When conflicts occur in the merge, they are stored in the temporary EXCLUDED table.
-    set_clause = ",".join(
-        [f'"{col}" = EXCLUDED."{col}"' for col in _merge_fields]
-    )
-
-    cursor.execute(f"""
-        CREATE UNIQUE INDEX IF NOT EXISTS idx_{table}_keys 
-        ON {table} ({_conflict_keys_str})
-    """)
-    connection.commit()
-
-    upsert_query = f"""
-        INSERT INTO {table} ({_cols_str})
-        SELECT {_cols_str} FROM staging_{table}
-        WHERE true
-        ON CONFLICT({_conflict_keys_str}) 
-        DO UPDATE SET 
-            {set_clause}
-    """
-
-    cursor.execute(upsert_query)
-    connection.commit()
-
-
 engine = create_engine('sqlite:///dbs/competitions.db', echo=False, pool_pre_ping=True)
 print(engine.connect())
 
 connection = sqlite3.connect('./dbs/competitions.db')
 cursor = connection.cursor()
 
-cursor.execute("""DROP TABLE IF EXISTS staging_competitions""")
-connection.commit()
-print('staging_competitions dropped')
-
-cursor.execute("""DROP TABLE IF EXISTS staging_matches""")
-connection.commit()
-print('staging_matches dropped')
-
-cursor.execute("""DROP TABLE IF EXISTS staging_events""")
-connection.commit()
-print('staging_events dropped')
-
+clean_staging(cursor, connection)
 
 competitions = sb.competitions()
 
-for col in comp.date_columns:
-    if col in competitions.columns:
-        competitions[col] = pd.to_datetime(competitions[col], format="ISO8601")
-
-try:
-    last_updated = pd.read_sql_query('SELECT COALESCE(MAX(match_updated),NULL) as last_updated FROM competitions', connection)['last_updated'][1]
-except:
-    last_updated = None
-
-if last_updated is None:
-    competitions_df = competitions
-else:
-    competitions_df = competitions[competitions['match_updated'] > last_updated]
-
-print(f"Writing competitions into the staging table!")
-
-competitions_df.to_sql('staging_competitions', con=engine, if_exists='replace', dtype = comp.column_mapping, index = False)
-
-print(f"Merging staging_competitions into competitions")
-
-_merge(cursor, connection, comp, 'competitions')
+competitions_df = comp.etl_competitions(connection, cursor, engine, _merge, comp, competitions)
 
 
 comp_id_season_id_df = competitions_df[['competition_id', 'season_id']]
@@ -151,29 +89,29 @@ for _array in comp_id_season_id_list:
     print(f"Writing matches for competition-season {competition_id}-{season_id}.")
     matches_df.to_sql('staging_matches', con=engine, if_exists='append', dtype = match.column_mapping, index = False)
 
-    match_ids_df = matches_df[['match_id']]
+#     match_ids_df = matches_df[['match_id']]
 
-    match_ids_dict = match_ids_df.to_dict()
+#     match_ids_dict = match_ids_df.to_dict()
 
-    match_ids_list = [match_ids_dict['match_id'][i] for i in list(match_ids_dict['match_id'].keys())]
+#     match_ids_list = [match_ids_dict['match_id'][i] for i in list(match_ids_dict['match_id'].keys())]
     
-    for match_id in match_ids_list:
-        print(f'Starting Events extraction for match {match_id}')
-        events = sb.events(match_id=match_id)
-        events_df = events.reindex(columns=event.column_mapping.keys())
+#     for match_id in match_ids_list:
+#         print(f'Starting Events extraction for match {match_id}')
+#         events = sb.events(match_id=match_id)
+#         events_df = events.reindex(columns=event.column_mapping.keys())
 
-        print(f"Writing into staging_events")
-        events_df.to_sql('staging_events', con=engine, if_exists='append', dtype = event.column_mapping, index = False)
+#         print(f"Writing into staging_events")
+#         events_df.to_sql('staging_events', con=engine, if_exists='append', dtype = event.column_mapping, index = False)
     
-    print(f"Merging events for competition-season {competition_id}-{season_id}.")
-    _merge(cursor, connection, event, 'events')
+#     print(f"Merging events for competition-season {competition_id}-{season_id}.")
+#     _merge(cursor, connection, event, 'events')
 
-print(f"Merging all matches.")
+# print(f"Merging all matches.")
 
-_merge(cursor, connection, match, 'matches')
+# _merge(cursor, connection, match, 'matches')
 
-print("Merge complete!")
-# Close the database connection
+# print("Merge complete!")
+# # Close the database connection
 connection.close()
 
 print(f"Total Runtime {time.time() - start_time} seconds")
