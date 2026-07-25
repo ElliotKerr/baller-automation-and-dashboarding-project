@@ -45,8 +45,9 @@ class Competitions():
     def etl_competitions(
             self, 
             staging_engine, 
-            bronze_connection, 
-            bronze_cursor, 
+            stg_schema,
+            brz_connection, 
+            brz_cursor, 
             _merge, 
             comp_class, 
             base_competitions,
@@ -65,7 +66,7 @@ class Competitions():
                     COALESCE(MAX(match_updated),NULL) AS last_updated 
                 FROM    
                     competitions
-            ''', bronze_connection)['last_updated'][0]
+            ''', brz_connection)['last_updated'][0]
         except:
             last_updated = None
 
@@ -84,8 +85,8 @@ class Competitions():
             index = False
         )
 
-        logger.info(f"Merging staging.competitions into competitions")
+        logger.info(f"Merging {stg_schema}.competitions into competitions")
 
-        _merge(bronze_cursor, bronze_connection, comp_class, 'competitions')
+        _merge(stg_schema, brz_cursor, brz_connection, comp_class, 'competitions')
     
         return competitions_df

@@ -89,6 +89,7 @@ class Matches():
             sb,
             event_class,
             stg_engine, 
+            stg_schema,
             brz_connection, 
             brz_cursor, 
             _merge, 
@@ -138,7 +139,7 @@ class Matches():
             else:
                 matches_df = matches[matches['last_updated'] > match_last_updated]
 
-            logger.info(f"Writing matches for competition-season {competition_id}-{season_id} into staging.matches.")
+            logger.info(f"Writing matches for competition-season {competition_id}-{season_id} into {stg_schema}.matches.")
 
             matches_df.to_sql(
                 'matches', 
@@ -151,6 +152,7 @@ class Matches():
             event_class.etl_events(
                 sb,
                 stg_engine, 
+                stg_schema,
                 brz_connection, 
                 brz_cursor, 
                 _merge, 
@@ -163,4 +165,4 @@ class Matches():
 
         logger.info(f"Merging all matches into bronze.matches.")
 
-        _merge(brz_cursor, brz_connection, match_class, 'matches')
+        _merge(stg_schema, brz_cursor, brz_connection, match_class, 'matches')

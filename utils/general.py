@@ -35,7 +35,7 @@ def clean_staging(cursor, connection):
     logging.info('staging.events dropped')
 
 
-def _merge(cursor, connection, _class, table):
+def _merge(source_schema, cursor, connection, _class, table):
     _fields = list(_class.column_mapping.keys())
 
     _merge_fields = [f for f in _fields]
@@ -56,7 +56,7 @@ def _merge(cursor, connection, _class, table):
 
     upsert_query = f"""
         INSERT INTO {table} ({_cols_str})
-        SELECT {_cols_str} FROM staging.{table}
+        SELECT {_cols_str} FROM {source_schema}.{table}
         WHERE true
         ON CONFLICT({_conflict_keys_str}) 
         DO UPDATE SET 

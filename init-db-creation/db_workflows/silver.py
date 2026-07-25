@@ -58,9 +58,9 @@ COMP_MATCH_QUERY = """
         {competition_field_names}
         ,{match_field_names}
     FROM 
-        bronze.competitions c
+        {brz_schema}.competitions c
     LEFT JOIN 
-        bronze.matches m
+        {brz_schema}.matches m
     ON 
         c.competition_id = m.competition_id
     AND 
@@ -73,15 +73,15 @@ COMPLETE_QUERY = """
         ,{match_field_names}
         ,{event_field_names}
     FROM 
-        bronze.competitions c
+        {brz_schema}.competitions c
     LEFT JOIN 
-        bronze.matches m
+        {brz_schema}.matches m
     ON 
         c.competition_id = m.competition_id
     AND
         c.season_id = m.season_id
     LEFT JOIN 
-        bronze.events e
+        {brz_schema}.events e
     ON 
         m.match_id = e.match_id
 """
@@ -89,6 +89,7 @@ COMPLETE_QUERY = """
 
 def silver_main(
         slv_schema : str, 
+        brz_schema : str,
         logger
     ):
     """
@@ -126,7 +127,7 @@ def silver_main(
 
     slv_cursor.execute(f"""
         CREATE TABLE comp_matches AS 
-        {COMP_MATCH_QUERY.format(competition_field_names = competition_field_names_string, match_field_names = match_field_names_string)}
+        {COMP_MATCH_QUERY.format(competition_field_names = competition_field_names_string, match_field_names = match_field_names_string, brz_schema = brz_schema)}
     """)
 
     logger.info("Dropping intermediate.complete if it exists already")
@@ -137,7 +138,7 @@ def silver_main(
 
     slv_cursor.execute(f"""
         CREATE TABLE complete AS 
-        {COMPLETE_QUERY.format(competition_field_names = competition_field_names_string, match_field_names = match_field_names_string, event_field_names = event_field_names_string)}
+        {COMPLETE_QUERY.format(competition_field_names = competition_field_names_string, match_field_names = match_field_names_string, event_field_names = event_field_names_string, brz_schema = brz_schema)}
     """)
 
 

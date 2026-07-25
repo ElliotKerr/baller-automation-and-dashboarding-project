@@ -36,11 +36,11 @@ from db_workflows.silver import silver_main
 
 STAGING_SCHEMA = 'staging'
 BRONZE_SCHEMA = 'bronze'
-SILVER_SCHEMA = 'intermediate'
-GOLD_SCHEMA = 'prod'
+SILVER_SCHEMA = 'silver'
+GOLD_SCHEMA = 'gold'
 
 SCHEMAS = [STAGING_SCHEMA, BRONZE_SCHEMA, SILVER_SCHEMA, GOLD_SCHEMA]
-DB_NAMES = ['staging', 'bronze', 'intermediate', 'prod']
+DB_NAMES = ['staging', 'bronze', 'silver', 'gold']
 
 
 def create_dbs(db_name):
@@ -85,9 +85,9 @@ if __name__ == '__main__':
             create_dbs(schema)
 
 
-    # bronze_main(STAGING_SCHEMA, BRONZE_SCHEMA, get_logger("BRONZE"), competition_id = 43, season_id = 106)
+    bronze_main(STAGING_SCHEMA, BRONZE_SCHEMA, get_logger("BRONZE"), competition_id = 43, season_id = 106)
 
     silver_main(
-        SILVER_SCHEMA, get_logger("SILVER")
+        SILVER_SCHEMA, BRONZE_SCHEMA, get_logger("SILVER")
     )
     

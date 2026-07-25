@@ -144,6 +144,7 @@ class Events():
             self,
             sb,
             stg_engine, 
+            stg_schema,
             brz_connection, 
             brz_cursor, 
             _merge, 
@@ -169,7 +170,7 @@ class Events():
             events = sb.events(match_id=match_id)
             events_df = events.reindex(columns=event_class.column_mapping.keys())
 
-            logger.info(f"Writing into staging.events")
+            logger.info(f"Writing into {stg_schema}.events")
 
             events_df.to_sql(
                 'events', 
@@ -180,4 +181,4 @@ class Events():
             )
         
         logger.info(f"Merging events for competition-season {competition_id}-{season_id}.")
-        _merge(brz_cursor, brz_connection, event_class, 'events')
+        _merge(stg_schema, brz_cursor, brz_connection, event_class, 'events')

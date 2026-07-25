@@ -79,7 +79,7 @@ def bronze_main(
     brz_engine = create_db_engine_func(brz_schema, DB_ENGINE_STRING, create_engine)
     brz_connection, brz_cursor = create_db_connection_func(brz_schema, sqlite3)
 
-    brz_cursor.execute("ATTACH DATABASE './dbs/staging.db' AS staging")
+    brz_cursor.execute(f"ATTACH DATABASE './dbs/{stg_schema}.db' AS {stg_schema}")
 
     clean_staging(stg_cursor, stg_connection)
 
@@ -94,6 +94,7 @@ def bronze_main(
 
     competitions_df = comp_pyclass.etl_competitions(
         stg_engine, 
+        stg_schema,
         brz_connection, 
         brz_cursor, 
         _merge, 
@@ -107,6 +108,7 @@ def bronze_main(
         sb,
         event_pyclass,
         stg_engine, 
+        stg_schema,
         brz_connection, 
         brz_cursor, 
         _merge, 
@@ -116,7 +118,7 @@ def bronze_main(
     )
 
 
-    brz_cursor.execute("DETACH DATABASE staging")
+    brz_cursor.execute(f"DETACH DATABASE {stg_schema}")
 
 
     stg_connection.close()
