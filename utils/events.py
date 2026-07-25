@@ -138,3 +138,46 @@ class Events():
         # Metadata
         "match_id": Integer,
     }
+
+
+    def etl_events(
+            self,
+            sb,
+            stg_engine, 
+            brz_connection, 
+            brz_cursor, 
+            _merge, 
+            event_class, 
+            matches,
+            competition_id,
+            season_id,
+            logger
+        ):
+        """
+        Doc String
+        """
+
+        match_ids_df = matches[['match_id']]
+
+        match_ids_dict = match_ids_df.to_dict()
+
+        match_ids_list = [match_ids_dict['match_id'][i] for i in list(match_ids_dict['match_id'].keys())]
+
+
+        for match_id in match_ids_list:
+            logger.info(f"Starting Events extraction for match {match_id}")
+            events = sb.events(match_id=match_id)
+            events_df = events.reindex(columns=event_class.column_mapping.keys())
+
+            logger.info(f"Writing into staging.events")
+
+            events_df.to_sql(
+                'events', 
+                con=stg_engine, 
+                if_exists='append', 
+                dtype = event_class.column_mapping, 
+                index = False
+            )
+        
+        logger.info(f"Merging events for competition-season {competition_id}-{season_id}.")
+        _merge(brz_cursor, brz_connection, event_class, 'events')

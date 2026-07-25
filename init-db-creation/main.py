@@ -1,3 +1,21 @@
+"""
+Run Initial Database Creation Workflows
+
+Overview
+
+
+
+Workflow Description
+
+
+Requirements/Prerequistes
+
+
+
+
+Author
+
+"""
 # Only needed in windows:
 import sys
 from pathlib import Path
@@ -8,110 +26,68 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 
-import warnings
-from statsbombpy.api_client import NoAuthWarning
-
-# Suppress the NoAuthWarning specifically
-warnings.filterwarnings("ignore", category=NoAuthWarning)
-
-from statsbombpy import sb
 import sqlite3
 from sqlalchemy import create_engine
-import time
 import pandas as pd
+import logging
+import os
+from db_workflows.bronze import bronze_main
+from db_workflows.silver import silver_main
 
-from utils.general import clean_staging, _merge
-from utils.competitions import Competitions
-from utils.matches import Matches
-from utils.events import Events
+STAGING_SCHEMA = 'staging'
+BRONZE_SCHEMA = 'bronze'
+SILVER_SCHEMA = 'intermediate'
+GOLD_SCHEMA = 'prod'
 
-start_time = time.time()
-
-# Class storing the fields and composite key used in the merge procedure.
-comp = Competitions()
-match = Matches()
-event = Events()
-
-engine = create_engine('sqlite:///dbs/competitions.db', echo=False, pool_pre_ping=True)
-print(engine.connect())
-
-connection = sqlite3.connect('./dbs/competitions.db')
-cursor = connection.cursor()
-
-clean_staging(cursor, connection)
-
-competitions = sb.competitions()
-
-competitions_df = comp.etl_competitions(connection, cursor, engine, _merge, comp, competitions)
+SCHEMAS = [STAGING_SCHEMA, BRONZE_SCHEMA, SILVER_SCHEMA, GOLD_SCHEMA]
+DB_NAMES = ['staging', 'bronze', 'intermediate', 'prod']
 
 
-comp_id_season_id_df = competitions_df[['competition_id', 'season_id']]
+def create_dbs(db_name):
+    """
+    Doc String
+    """
+    connection = sqlite3.connect(f'./dbs/{db_name}.db')
 
-comp_id_season_id_dict = comp_id_season_id_df.to_dict()
-
-comp_id_season_id_list = [
-    [
-        comp_id_season_id_dict['competition_id'][i], 
-        comp_id_season_id_dict['season_id'][i]
-    ] for i in list(comp_id_season_id_dict['competition_id'].keys())]
+    connection.close()
 
 
-for _array in comp_id_season_id_list:
-    competition_id = _array[0]
-    season_id = _array[1]
+def get_logger(logging_type):
+    """
+    Doc String
+    """
+    logger = logging.getLogger(logging_type)
 
-    matches = sb.matches(competition_id=competition_id, season_id=season_id)
+    if not logger.handlers:
+        handler = logging.StreamHandler()
+        formatter = logging.Formatter(
+            f"[%(asctime)s] %(levelname)s - {logging_type} - %(message)s"
+        )
+        handler.setFormatter(formatter)
 
-    for col in match.date_columns:
-        if col in matches.columns:
-            matches[col] = pd.to_datetime(matches[col], format="ISO8601")
+        logger.addHandler(handler)
+        logger.setLevel(logging.INFO)
+        
+        logger.propagate = False
 
-    try:
-        match_last_updated = pd.read_sql_query(f'''
-            SELECT 
-                COALESCE(MAX(last_updated),NULL) AS last_updated 
-            FROM 
-                matches 
-            WHERE 
-                competition_id = {competition_id} 
-            AND 
-                season_id = {season_id}
-        ''', connection)['last_updated'][1]
-    except:
-        match_last_updated = None
+    return logger
+
+
+if __name__ == '__main__':
+    main_logger = get_logger(" MAIN ")
     
-    if match_last_updated is None:
-        matches_df = matches
-    else:
-        matches_df = matches[matches['last_updated'] > match_last_updated]
+    for i in range(len(SCHEMAS)):
+        db_name = DB_NAMES[i]
+        schema = SCHEMAS[i]
 
+        if f"{db_name}.db" not in os.listdir("./dbs"):
+            main_logger.info(f"Creating database '{schema}'")
+            create_dbs(schema)
+
+
+    # bronze_main(STAGING_SCHEMA, BRONZE_SCHEMA, get_logger("BRONZE"), competition_id = 43, season_id = 106)
+
+    silver_main(
+        SILVER_SCHEMA, get_logger("SILVER")
+    )
     
-    print(f"Writing matches for competition-season {competition_id}-{season_id}.")
-    matches_df.to_sql('staging_matches', con=engine, if_exists='append', dtype = match.column_mapping, index = False)
-
-#     match_ids_df = matches_df[['match_id']]
-
-#     match_ids_dict = match_ids_df.to_dict()
-
-#     match_ids_list = [match_ids_dict['match_id'][i] for i in list(match_ids_dict['match_id'].keys())]
-    
-#     for match_id in match_ids_list:
-#         print(f'Starting Events extraction for match {match_id}')
-#         events = sb.events(match_id=match_id)
-#         events_df = events.reindex(columns=event.column_mapping.keys())
-
-#         print(f"Writing into staging_events")
-#         events_df.to_sql('staging_events', con=engine, if_exists='append', dtype = event.column_mapping, index = False)
-    
-#     print(f"Merging events for competition-season {competition_id}-{season_id}.")
-#     _merge(cursor, connection, event, 'events')
-
-# print(f"Merging all matches.")
-
-# _merge(cursor, connection, match, 'matches')
-
-# print("Merge complete!")
-# # Close the database connection
-connection.close()
-
-print(f"Total Runtime {time.time() - start_time} seconds")

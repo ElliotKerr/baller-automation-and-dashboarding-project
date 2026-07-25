@@ -1,4 +1,24 @@
+"""
+Script Doc String
+
+Overview
+
+
+Workflow Description
+
+
+
+Requirements/Prerequistes
+
+
+
+
+Author
+
+"""
+
 from sqlalchemy import String, Integer, DateTime, Date
+import pandas as pd
 
 class Matches():
 
@@ -63,3 +83,84 @@ class Matches():
     }
 
     date_columns = ['last_updated', 'last_updated_360', 'match_date']
+
+    def etl_matches(
+            self,
+            sb,
+            event_class,
+            stg_engine, 
+            brz_connection, 
+            brz_cursor, 
+            _merge, 
+            match_class, 
+            competitions_df,
+            logger
+        ):
+        """
+        Doc String
+        """
+        comp_id_season_id_df = competitions_df[['competition_id', 'season_id']]
+
+        comp_id_season_id_dict = comp_id_season_id_df.to_dict()
+
+        comp_id_season_id_list = [
+            [
+                comp_id_season_id_dict['competition_id'][i], 
+                comp_id_season_id_dict['season_id'][i]
+            ] for i in list(comp_id_season_id_dict['competition_id'].keys())]
+
+        for _array in comp_id_season_id_list:
+            competition_id = _array[0]
+            season_id = _array[1]
+
+            matches = sb.matches(competition_id=competition_id, season_id=season_id)
+
+            for col in match_class.date_columns:
+                if col in matches.columns:
+                    matches[col] = pd.to_datetime(matches[col], format="ISO8601")        
+
+            try:
+                match_last_updated = pd.read_sql_query(f'''
+                    SELECT 
+                        COALESCE(MAX(last_updated),NULL) AS last_updated 
+                    FROM 
+                        matches 
+                    WHERE 
+                        competition_id = {competition_id} 
+                    AND 
+                        season_id = {season_id}
+                ''', brz_connection)['last_updated'][0]
+            except:
+                match_last_updated = None
+            
+            if match_last_updated is None:
+                matches_df = matches
+            else:
+                matches_df = matches[matches['last_updated'] > match_last_updated]
+
+            logger.info(f"Writing matches for competition-season {competition_id}-{season_id} into staging.matches.")
+
+            matches_df.to_sql(
+                'matches', 
+                con=stg_engine, 
+                if_exists='append', 
+                dtype = match_class.column_mapping, 
+                index = False
+            )
+
+            event_class.etl_events(
+                sb,
+                stg_engine, 
+                brz_connection, 
+                brz_cursor, 
+                _merge, 
+                event_class, 
+                matches_df,
+                competition_id,
+                season_id,
+                logger
+            )
+
+        logger.info(f"Merging all matches into bronze.matches.")
+
+        _merge(brz_cursor, brz_connection, match_class, 'matches')

@@ -1,6 +1,25 @@
+"""
+Script Doc String
+
+Overview
+
+
+Workflow Description
+
+
+
+Requirements/Prerequistes
+
+
+
+
+Author
+
+"""
+
+
 from sqlalchemy import String, Integer, DateTime
 import pandas as pd
-
 
 class Competitions():
 
@@ -23,30 +42,50 @@ class Competitions():
 
     date_columns = ['match_updated', 'match_updated_360', 'match_available_360', 'match_available']
 
-    def etl_competitions(self, connection, cursor, engine, _merge, comp_class, competitions):
+    def etl_competitions(
+            self, 
+            staging_engine, 
+            bronze_connection, 
+            bronze_cursor, 
+            _merge, 
+            comp_class, 
+            base_competitions,
+            logger
+        ):
         """
-        
+        Doc String
         """
         for col in comp_class.date_columns:
-            if col in competitions.columns:
-                competitions[col] = pd.to_datetime(competitions[col], format="ISO8601")
+            if col in base_competitions.columns:
+                base_competitions[col] = pd.to_datetime(base_competitions[col], format="ISO8601")
 
         try:
-            last_updated = pd.read_sql_query('SELECT COALESCE(MAX(match_updated),NULL) as last_updated FROM competitions', connection)['last_updated'][0]
+            last_updated = pd.read_sql_query(f'''
+                SELECT 
+                    COALESCE(MAX(match_updated),NULL) AS last_updated 
+                FROM    
+                    competitions
+            ''', bronze_connection)['last_updated'][0]
         except:
             last_updated = None
 
         if last_updated is None:
-            competitions_df = competitions
+            competitions_df = base_competitions
         else:
-            competitions_df = competitions[competitions['match_updated'] > last_updated]
+            competitions_df = base_competitions[base_competitions['match_updated'] > last_updated]
 
-        print(f"Writing competitions into the staging table!")
+        logger.info(f"Writing competitions into the staging table!")
 
-        competitions_df.to_sql('staging_competitions', con=engine, if_exists='replace', dtype = comp_class.column_mapping, index = False)
+        competitions_df.to_sql(
+            'competitions', 
+            con=staging_engine, 
+            if_exists='replace', 
+            dtype = comp_class.column_mapping, 
+            index = False
+        )
 
-        print(f"Merging staging_competitions into competitions")
+        logger.info(f"Merging staging.competitions into competitions")
 
-        _merge(cursor, connection, comp_class, 'competitions')
+        _merge(bronze_cursor, bronze_connection, comp_class, 'competitions')
     
         return competitions_df
