@@ -42,8 +42,8 @@ from db_workflows.silver import silver_main
 SCHEMAS = {
     'STAGING_SCHEMA' : 'staging',
     'BRONZE_SCHEMA' : 'bronze', 
-    # 'SILVER_SCHEMA' : 'silver', 
-    # 'GOLD_SCHEMA' : 'gold'
+    'SILVER_SCHEMA' : 'silver', 
+    'GOLD_SCHEMA' : 'gold'
 }
 
 
@@ -89,7 +89,7 @@ if __name__ == '__main__':
 
     bronze_main(SCHEMAS['STAGING_SCHEMA'], SCHEMAS['BRONZE_SCHEMA'], get_logger("BRONZE"), competition_id = 43, season_id = 106)
 
-    # silver_main(
-    #     SILVER_SCHEMA, BRONZE_SCHEMA, get_logger("SILVER")
-    # )
+    silver_main(
+        SCHEMAS['SILVER_SCHEMA'], SCHEMAS['BRONZE_SCHEMA'], get_logger("SILVER")
+    )
     

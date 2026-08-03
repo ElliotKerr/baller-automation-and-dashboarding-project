@@ -29,12 +29,14 @@ from statsbombpy.api_client import NoAuthWarning
 # Suppress the NoAuthWarning specifically
 warnings.filterwarnings("ignore", category=NoAuthWarning)
 
+from statsbombpy import sb
 import sqlite3
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 import time
+from datetime import datetime, timedelta, timezone
 import pandas as pd
 
-from utils.general import _merge, create_db_engine_func, create_db_connection_func, DB_ENGINE_STRING
+from utils.general import _merge, create_db_engine_func, DB_ENGINE_STRING, col_cleaning
 
 from utils.competitions import Competitions
 from utils.matches import Matches
@@ -129,7 +131,29 @@ def create_combined_tables(slv_cursor, logger):
     """)
 
 
-# def clean_bronze_tables(slv_cursor, logger):
+def clean_bronze_tables(slv_dict, logger, table_name):
+    query = f"""
+        SELECT 
+            *
+        FROM 
+            bronze.{table_name} 
+        WHERE 
+            data_valid_to_utc IS NULL    
+    """
+    try:
+        slv_dict['conn'].execute(text(f"DROP TABLE main.{table_name}"))
+    except:
+        pass
+    
+    slv_dict['conn'].execute(text(f"CREATE TABLE main.{table_name} AS {query}"))
+
+    slv_dict['conn'].commit()
+
+    logger.info(f"Created silver.{table_name} using the cleaned version of bronze.{table_name}")
+
+
+
+
 
 
 def silver_main(
@@ -141,11 +165,19 @@ def silver_main(
     Doc String
     """
     slv_engine = create_db_engine_func(slv_schema, DB_ENGINE_STRING, create_engine)
-    slv_connection, slv_cursor = create_db_connection_func(slv_schema, sqlite3)
+    slv_dict = {'schema': slv_schema, 'engine': slv_engine, 'conn': slv_engine.connect()}
 
-    slv_cursor.execute("ATTACH DATABASE './dbs/bronze.db' AS bronze")
+    slv_dict['conn'].execute(text(f"ATTACH DATABASE './dbs/{brz_schema}.db' AS bronze"))
+    slv_dict['conn'].commit()
 
-    create_combined_tables(slv_cursor, logger)
+    logger.info(f"Cleaning the Bronze tables into Silver.")
 
-    slv_cursor.execute("DETACH DATABASE bronze")
-    slv_connection.close()
+    clean_bronze_tables(slv_dict, logger, 'competitions')
+
+    # create_combined_tables(slv_cursor, logger)
+
+    slv_dict['conn'].execute(text("DETACH DATABASE bronze"))
+    slv_dict['conn'].commit()
+
+    slv_dict['conn'].close()
+    slv_dict['engine'].dispose()
