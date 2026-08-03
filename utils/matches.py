@@ -34,7 +34,7 @@ class Matches():
         'match_status_360': String, 
         'last_updated': DateTime, 
         'last_updated_360': DateTime,
-        'match_week': String, 
+        'match_week': Integer, 
         'competition_id': Integer, 
         'competition_country_name': String,
         'competition_name': String, 
@@ -45,7 +45,7 @@ class Matches():
         'home_team': String, 
         'home_team_gender': String, 
         'home_team_group': String,
-        'home_team_country_id': String, 
+        'home_team_country_id': Integer, 
         'home_team_country_name': String, 
         'away_team_id': Integer,
         'away_team': String, 
@@ -68,13 +68,13 @@ class Matches():
         'home_manager_id': Integer, 
         'home_manager_name': String,
         'home_manager_nickname': String, 
-        'home_manager_dob': String, 
+        'home_manager_dob': Date, 
         'home_manager_country_id': String,
         'home_manager_country_name': String, 
         'away_manager_id': Integer, 
         'away_manager_name': String,
         'away_manager_nickname': String, 
-        'away_manager_dob': String, 
+        'away_manager_dob': Date, 
         'away_manager_country_id': String,
         'away_manager_country_name': String, 
         'data_version': String, 
@@ -82,7 +82,7 @@ class Matches():
         'xy_fidelity_version': String
     }
 
-    date_columns = ['last_updated', 'last_updated_360', 'match_date']
+    date_columns = ['last_updated', 'last_updated_360', 'match_date', 'home_manager_dob', 'away_manager_dob']
 
     def etl_matches(
             self,

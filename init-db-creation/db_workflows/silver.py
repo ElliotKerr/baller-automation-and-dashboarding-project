@@ -51,8 +51,6 @@ def extract_field_names(table_class):
     """
     return list(table_class.column_mapping.keys())
 
-
-
 COMP_MATCH_QUERY = """
     SELECT 
         {competition_field_names}
@@ -86,18 +84,7 @@ COMPLETE_QUERY = """
         m.match_id = e.match_id
 """
 
-
-def silver_main(
-        slv_schema : str, 
-        brz_schema : str,
-        logger
-    ):
-    """
-    Doc String
-    """
-    slv_engine = create_db_engine_func(slv_schema, DB_ENGINE_STRING, create_engine)
-    slv_connection, slv_cursor = create_db_connection_func(slv_schema, sqlite3)
-
+def create_combined_tables(slv_cursor, logger):
     competition_field_names = extract_field_names(comp_pyclass)
     competition_field_names_v2 = [f'"{field_name}"' for field_name in competition_field_names if '360' not in field_name]
 
@@ -107,13 +94,13 @@ def silver_main(
     event_field_names = extract_field_names(event_pyclass)
     event_field_names_v2 = [f'"{field_name}"' for field_name in event_field_names if ('360' not in field_name) and (field_name != 'match_id') and (field_name not in competition_field_names_v2) and (field_name not in match_field_names_v2)]
 
-    slv_cursor.execute("ATTACH DATABASE './dbs/bronze.db' AS bronze")
+    
 
-    logger.info("Dropping intermediate.comp_matches if it exists already")
+    logger.info("Dropping silver.comp_matches if it exists already")
 
     slv_cursor.execute("""DROP TABLE IF EXISTS comp_matches""")
 
-    logger.info("Creating a new version of intermediate.comp_matches.")
+    logger.info("Creating a new version of silver.comp_matches.")
 
     competition_field_names_string = "c."
     competition_field_names_string += ',c.'.join(competition_field_names_v2)
@@ -130,17 +117,35 @@ def silver_main(
         {COMP_MATCH_QUERY.format(competition_field_names = competition_field_names_string, match_field_names = match_field_names_string, brz_schema = brz_schema)}
     """)
 
-    logger.info("Dropping intermediate.complete if it exists already")
+    logger.info("Dropping silver.complete if it exists already")
 
     slv_cursor.execute("""DROP TABLE IF EXISTS complete""")
 
-    logger.info("Creating a new version of intermediate.complete.")
+    logger.info("Creating a new version of silver.complete.")
 
     slv_cursor.execute(f"""
         CREATE TABLE complete AS 
         {COMPLETE_QUERY.format(competition_field_names = competition_field_names_string, match_field_names = match_field_names_string, event_field_names = event_field_names_string, brz_schema = brz_schema)}
     """)
 
+
+# def clean_bronze_tables(slv_cursor, logger):
+
+
+def silver_main(
+        slv_schema : str, 
+        brz_schema : str,
+        logger
+    ):
+    """
+    Doc String
+    """
+    slv_engine = create_db_engine_func(slv_schema, DB_ENGINE_STRING, create_engine)
+    slv_connection, slv_cursor = create_db_connection_func(slv_schema, sqlite3)
+
+    slv_cursor.execute("ATTACH DATABASE './dbs/bronze.db' AS bronze")
+
+    create_combined_tables(slv_cursor, logger)
 
     slv_cursor.execute("DETACH DATABASE bronze")
     slv_connection.close()
