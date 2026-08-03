@@ -18,7 +18,7 @@ Author
 """
 
 
-from sqlalchemy import String, Integer, DateTime
+from sqlalchemy import String, Integer, DateTime, Boolean
 import pandas as pd
 
 class Competitions():
@@ -31,16 +31,17 @@ class Competitions():
         "country_name": String,
         "competition_name": String,
         "competition_gender": String,
-        "competition_youth": String,
-        "competition_international": String,
+        "competition_youth": Boolean,
+        "competition_international": Boolean,
         "season_name": String,
         "match_updated": DateTime,
         "match_updated_360": DateTime,
         "match_available_360": DateTime,
         "match_available": DateTime,
+        "data_valid_from_utc": DateTime,
+        "data_valid_to_utc": DateTime,
     }
 
-    date_columns = ['match_updated', 'match_updated_360', 'match_available_360', 'match_available']
 
     def etl_competitions(
             self, 
@@ -51,14 +52,15 @@ class Competitions():
             _merge, 
             comp_class, 
             base_competitions,
+            col_cleaner_function,
+            data_valid_to,
             logger
         ):
         """
         Doc String
         """
-        for col in comp_class.date_columns:
-            if col in base_competitions.columns:
-                base_competitions[col] = pd.to_datetime(base_competitions[col], format="ISO8601")
+        last_updated = None
+        table_exists = True
 
         try:
             last_updated = pd.read_sql_query(f'''
@@ -68,12 +70,15 @@ class Competitions():
                     competitions
             ''', brz_connection)['last_updated'][0]
         except:
-            last_updated = None
+            table_exists = False
+
 
         if last_updated is None:
             competitions_df = base_competitions
         else:
             competitions_df = base_competitions[base_competitions['match_updated'] > last_updated]
+
+        competitions_df = col_cleaner_function(competitions_df, comp_class.column_mapping)
 
         logger.info(f"Writing competitions into the staging table!")
 
@@ -87,6 +92,6 @@ class Competitions():
 
         logger.info(f"Merging {stg_schema}.competitions into competitions")
 
-        _merge(stg_schema, brz_cursor, brz_connection, comp_class, 'competitions')
+        _merge(stg_schema, brz_cursor, brz_connection, comp_class, 'competitions', data_valid_to)
     
         return competitions_df

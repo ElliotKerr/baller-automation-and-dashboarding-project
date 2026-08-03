@@ -48,8 +48,9 @@ from statsbombpy import sb
 import sqlite3
 from sqlalchemy import create_engine
 import time
+from datetime import datetime, timedelta, timezone
 
-from utils.general import clean_staging, _merge, create_db_engine_func, create_db_connection_func, DB_ENGINE_STRING
+from utils.general import clean_staging, _merge, create_db_engine_func, create_db_connection_func, DB_ENGINE_STRING, col_cleaning
 from utils.competitions import Competitions
 from utils.matches import Matches
 from utils.events import Events
@@ -83,6 +84,9 @@ def bronze_main(
 
     clean_staging(stg_cursor, stg_connection)
 
+    valid_from = datetime.now(timezone.utc).replace(tzinfo=None)
+    valid_to = valid_from - timedelta(milliseconds=1)
+
     competitions = sb.competitions()
 
     if not (competition_id is None or season_id is None):
@@ -90,6 +94,10 @@ def bronze_main(
             (competitions['competition_id'] == competition_id) & 
             (competitions['season_id'] == season_id)
         ].copy()
+
+
+    competitions['data_valid_from_utc'] = valid_from
+    competitions['data_valid_to_utc'] = None
 
 
     competitions_df = comp_pyclass.etl_competitions(
@@ -100,25 +108,27 @@ def bronze_main(
         _merge, 
         comp_pyclass, 
         competitions,
+        col_cleaning,
+        valid_to,
         logger
     ) 
 
 
-    match_pyclass.etl_matches(
-        sb,
-        event_pyclass,
-        stg_engine, 
-        stg_schema,
-        brz_connection, 
-        brz_cursor, 
-        _merge, 
-        match_pyclass, 
-        competitions_df,
-        logger
-    )
+    # match_pyclass.etl_matches(
+    #     sb,
+    #     event_pyclass,
+    #     stg_engine, 
+    #     stg_schema,
+    #     brz_connection, 
+    #     brz_cursor, 
+    #     _merge, 
+    #     match_pyclass, 
+    #     competitions_df,
+    #     logger
+    # )
 
 
-    brz_cursor.execute(f"DETACH DATABASE {stg_schema}")
+    # brz_cursor.execute(f"DETACH DATABASE {stg_schema}")
 
 
     stg_connection.close()
