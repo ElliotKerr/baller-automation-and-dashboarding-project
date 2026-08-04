@@ -1,4 +1,24 @@
-from sqlalchemy import String, Integer, DateTime, Float, JSON, Boolean
+"""
+Script Doc String
+
+Overview
+
+
+Workflow Description
+
+
+
+Requirements/Prerequistes
+
+
+
+
+Author
+
+"""
+
+from sqlalchemy import String, Integer, DateTime, Date, text, Boolean, JSON, Float
+import pandas as pd
 
 class Events():
 
@@ -137,48 +157,68 @@ class Events():
 
         # Metadata
         "match_id": Integer,
+        "data_valid_from_utc": DateTime,
+        "data_valid_to_utc": DateTime
     }
 
+    def bronze_update_current_historical_records(self, id_list, data_valid_to, brz_dict):
+        """
+        Doc String
+        """
+
+        update_dvt_col = f"""
+            UPDATE events
+            SET data_valid_to_utc = '{data_valid_to}'
+            WHERE id IN ({", ".join(f"'{i}'" for i in id_list)})
+        """
+
+        brz_dict['conn'].execute(text(update_dvt_col))
+        brz_dict['conn'].commit()
 
     def etl_events(
             self,
             sb,
-            stg_engine, 
-            stg_schema,
-            brz_connection, 
-            brz_cursor, 
-            _merge, 
-            event_class, 
-            matches,
-            competition_id,
-            season_id,
+            brz_dict,
+            comp_season_match_tuple,
+            col_cleaning,
+            valid_from,
+            valid_to,
             logger
         ):
         """
         Doc String
         """
-
-        match_ids_df = matches[['match_id']]
-
-        match_ids_dict = match_ids_df.to_dict()
-
-        match_ids_list = [match_ids_dict['match_id'][i] for i in list(match_ids_dict['match_id'].keys())]
-
-
-        for match_id in match_ids_list:
+        for _, __, match_id in comp_season_match_tuple:
             logger.info(f"Starting Events extraction for match {match_id}")
             events = sb.events(match_id=match_id)
-            events_df = events.reindex(columns=event_class.column_mapping.keys())
 
-            logger.info(f"Writing into {stg_schema}.events")
+            events['data_valid_from_utc'] = valid_from
+            events['data_valid_to_utc'] = None
 
-            events_df.to_sql(
-                'events', 
-                con=stg_engine, 
-                if_exists='append', 
-                dtype = event_class.column_mapping, 
-                index = False
-            )
-        
-        logger.info(f"Merging events for competition-season {competition_id}-{season_id}.")
-        _merge(stg_schema, brz_cursor, brz_connection, event_class, 'events')
+            base_events = col_cleaning(events, self.column_mapping)    
+
+            events_df = base_events.reindex(columns=self.column_mapping.keys())
+
+            if not events_df.empty:
+                logger.info(f"Updating any old records that are being updated.")
+
+                id_list = events_df['id'].tolist()
+                try:
+                    self.bronze_update_current_historical_records(id_list, valid_to, brz_dict)
+                except:
+                    pass
+
+                logger.info(f"Writing into {brz_dict['schema']}.events")
+
+                events_clean_df = events_df.astype(object).where(pd.notnull(events_df), None)
+
+                events_clean_df.to_sql(
+                    'events', 
+                    con=brz_dict['conn'], 
+                    if_exists='append', 
+                    dtype = self.column_mapping, 
+                    index = False
+                )
+
+                brz_dict['conn'].commit()
+    

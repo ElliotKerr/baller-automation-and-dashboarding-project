@@ -18,7 +18,7 @@ Author
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, date
 import pandas as pd
 from sqlalchemy import String, Integer, DateTime, Float, JSON, Boolean, Date, create_engine, text
 
@@ -28,6 +28,7 @@ SQL_PY_DTYPE_MAPPING = {
     String: str,
     Integer: int,
     DateTime: datetime,
+    Date: date,
     Float: float,
     JSON: dict,
     Boolean: bool
@@ -37,20 +38,39 @@ def col_cleaning(df, column_mapping):
     """
     Doc String
     """
-    for col, sql_dtype in column_mapping.items():
-        py_type = SQL_PY_DTYPE_MAPPING[sql_dtype]
+    target_cols = [col for col in column_mapping if col in df.columns]
+    
+    if not target_cols:
+        return df
 
-        df[col] = df[col].apply(lambda x: None if x in ('NaN', 'None', 'Null') else x)
+    df[target_cols] = df[target_cols].replace(['NaN', 'None', 'Null', 'nan', 'null', ''], None)
 
-        if py_type is datetime:
-            df[col] = pd.to_datetime(df[col], format="ISO8601")
-        if py_type is int:
-            df[col] = pd.to_numeric(df[col]).apply(lambda x: int(x))
-        if py_type is float:
-            df[col] = pd.to_numeric(df[col]).apply(lambda x: float(x))
+    for col in target_cols:
+        sql_dtype = column_mapping[col]
+        py_type = SQL_PY_DTYPE_MAPPING.get(sql_dtype)
+
+        if py_type is None:
+            continue
+
+        if py_type is datetime or py_type is datetime:
+            df[col] = pd.to_datetime(df[col], format="ISO8601", errors='coerce')
+            
+        elif py_type is date or py_type is date:
+            df[col] = pd.to_datetime(df[col], format="ISO8601", errors='coerce').dt.date
+
+        elif py_type is int:
+            df[col] = pd.to_numeric(df[col], errors='coerce').astype('Int64')
+
+        elif py_type is float:
+            df[col] = pd.to_numeric(df[col], errors='coerce').astype('Float64')
+
+        elif py_type is bool:
+            df[col] = df[col].astype('boolean')
+
+        elif py_type is str:
+            df[col] = df[col].astype('string')
 
     return df
-
 
 
 def check_table_exists(logger, conn, table):

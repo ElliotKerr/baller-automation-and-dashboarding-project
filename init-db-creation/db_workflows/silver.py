@@ -53,83 +53,6 @@ def extract_field_names(table_class):
     """
     return list(table_class.column_mapping.keys())
 
-COMP_MATCH_QUERY = """
-    SELECT 
-        {competition_field_names}
-        ,{match_field_names}
-    FROM 
-        {brz_schema}.competitions c
-    LEFT JOIN 
-        {brz_schema}.matches m
-    ON 
-        c.competition_id = m.competition_id
-    AND 
-        c.season_id = m.season_id
-"""
-
-COMPLETE_QUERY = """
-    SELECT 
-        {competition_field_names}
-        ,{match_field_names}
-        ,{event_field_names}
-    FROM 
-        {brz_schema}.competitions c
-    LEFT JOIN 
-        {brz_schema}.matches m
-    ON 
-        c.competition_id = m.competition_id
-    AND
-        c.season_id = m.season_id
-    LEFT JOIN 
-        {brz_schema}.events e
-    ON 
-        m.match_id = e.match_id
-"""
-
-def create_combined_tables(slv_cursor, logger):
-    competition_field_names = extract_field_names(comp_pyclass)
-    competition_field_names_v2 = [f'"{field_name}"' for field_name in competition_field_names if '360' not in field_name]
-
-    match_field_names = extract_field_names(match_pyclass)
-    match_field_names_v2 = [f'"{field_name}"' for field_name in match_field_names if ('360' not in field_name) and (field_name != 'competition_id') and (field_name != 'season_id') and (field_name not in competition_field_names_v2)]
-
-    event_field_names = extract_field_names(event_pyclass)
-    event_field_names_v2 = [f'"{field_name}"' for field_name in event_field_names if ('360' not in field_name) and (field_name != 'match_id') and (field_name not in competition_field_names_v2) and (field_name not in match_field_names_v2)]
-
-    
-
-    logger.info("Dropping silver.comp_matches if it exists already")
-
-    slv_cursor.execute("""DROP TABLE IF EXISTS comp_matches""")
-
-    logger.info("Creating a new version of silver.comp_matches.")
-
-    competition_field_names_string = "c."
-    competition_field_names_string += ',c.'.join(competition_field_names_v2)
-
-    match_field_names_string = "m."
-    match_field_names_string += ',m.'.join(match_field_names_v2)
-
-    event_field_names_string = "e."
-    event_field_names_string += ',e.'.join(event_field_names_v2)
-
-
-    slv_cursor.execute(f"""
-        CREATE TABLE comp_matches AS 
-        {COMP_MATCH_QUERY.format(competition_field_names = competition_field_names_string, match_field_names = match_field_names_string, brz_schema = brz_schema)}
-    """)
-
-    logger.info("Dropping silver.complete if it exists already")
-
-    slv_cursor.execute("""DROP TABLE IF EXISTS complete""")
-
-    logger.info("Creating a new version of silver.complete.")
-
-    slv_cursor.execute(f"""
-        CREATE TABLE complete AS 
-        {COMPLETE_QUERY.format(competition_field_names = competition_field_names_string, match_field_names = match_field_names_string, event_field_names = event_field_names_string, brz_schema = brz_schema)}
-    """)
-
 
 def clean_bronze_tables(slv_dict, logger, table_name):
     query = f"""
@@ -152,10 +75,6 @@ def clean_bronze_tables(slv_dict, logger, table_name):
     logger.info(f"Created silver.{table_name} using the cleaned version of bronze.{table_name}")
 
 
-
-
-
-
 def silver_main(
         slv_schema : str, 
         brz_schema : str,
@@ -173,8 +92,8 @@ def silver_main(
     logger.info(f"Cleaning the Bronze tables into Silver.")
 
     clean_bronze_tables(slv_dict, logger, 'competitions')
-
-    # create_combined_tables(slv_cursor, logger)
+    clean_bronze_tables(slv_dict, logger, 'matches')
+    clean_bronze_tables(slv_dict, logger, 'events')
 
     slv_dict['conn'].execute(text("DETACH DATABASE bronze"))
     slv_dict['conn'].commit()

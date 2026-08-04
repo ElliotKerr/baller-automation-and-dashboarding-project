@@ -42,11 +42,33 @@ class Competitions():
         "data_valid_to_utc": DateTime,
     }
 
+    def bronze_update_current_historical_records(self, competitions_df, data_valid_to, brz_dict):
+        """
+        Doc String
+        """
+        comp_season_tuple = list(zip(*[competitions_df[c] for c in self.composite_keys]))
+
+        update_dvt_col = f"""
+            UPDATE competitions
+            SET data_valid_to_utc = '{data_valid_to}'
+            WHERE {{where_clause}}
+        """
+
+        where_clause = ""
+
+        for comp_id, season_id in comp_season_tuple:
+            where_clause += f'((competition_id = {comp_id}) AND (season_id = {season_id})) OR '
+
+        update_dvt_col_full = update_dvt_col.format(where_clause = where_clause[:-4])
+
+
+        brz_dict['conn'].execute(text(update_dvt_col_full))
+        brz_dict['conn'].commit()
+
 
     def etl_competitions(
             self, 
             brz_dict, 
-            comp_class, 
             base_competitions,
             col_cleaner_function,
             data_valid_to,
@@ -55,11 +77,9 @@ class Competitions():
         """
         Doc String
         """
-
-        base_competitions = col_cleaner_function(base_competitions, comp_class.column_mapping)
+        base_competitions = col_cleaner_function(base_competitions, self.column_mapping)
 
         last_updated = None
-        table_exists = True
 
         try:
             last_updated_raw = pd.read_sql_query(f'''
@@ -71,45 +91,29 @@ class Competitions():
 
             last_updated = pd.to_datetime(last_updated_raw) if pd.notnull(last_updated_raw) else None
         except:
-            table_exists = False
+            pass
 
         logger.info(f"Last Updated: {last_updated}")
 
         if last_updated is None:
             competitions_df = base_competitions
         else:
-            competitions_df = base_competitions[base_competitions['match_updated'] > last_updated]
+            competitions_df = base_competitions[base_competitions['match_updated'] >= last_updated]
 
 
         if not competitions_df.empty:
             logger.info(f"Updating any old records that are being updated.")
-            ## Create the update process here:
-            comp_season_tuple = list(zip(*[competitions_df[c] for c in ['competition_id', 'season_id']]))
+            try:
+                self.bronze_update_current_historical_records(competitions_df, data_valid_to, brz_dict)
+            except:
+                pass
 
-            update_dvt_col = f"""
-                UPDATE competitions
-                SET data_valid_to_utc = '{data_valid_to}'
-                WHERE {{where_clause}}
-            """
-
-            where_clause = ""
-
-            for comp_id, season_id in comp_season_tuple:
-                where_clause += f'((competition_id = {comp_id}) AND (season_id = {season_id})) OR '
-
-            update_dvt_col_full = update_dvt_col.format(where_clause = where_clause[:-4])
-
-            logger.info(update_dvt_col_full)
-
-            brz_dict['conn'].execute(text(update_dvt_col_full))
-            brz_dict['conn'].commit()
-
-            logger.info(f"Appending {len(competitions_df)} new row(s) to Bronze...")
+            logger.info(f"Appending {len(competitions_df)} new row(s) to bronze.competitions...")
             competitions_df.to_sql(
                 'competitions', 
                 con=brz_dict['conn'],
                 if_exists='append', 
-                dtype=comp_class.column_mapping, 
+                dtype=self.column_mapping, 
                 index=False
             )
             brz_dict['conn'].commit()

@@ -17,7 +17,7 @@ Author
 
 """
 
-from sqlalchemy import String, Integer, DateTime, Date
+from sqlalchemy import String, Integer, DateTime, Date, text
 import pandas as pd
 
 class Matches():
@@ -79,22 +79,43 @@ class Matches():
         'away_manager_country_name': String, 
         'data_version': String, 
         'shot_fidelity_version': String,
-        'xy_fidelity_version': String
+        'xy_fidelity_version': String,
+        "data_valid_from_utc": DateTime,
+        "data_valid_to_utc": DateTime
     }
 
-    date_columns = ['last_updated', 'last_updated_360', 'match_date', 'home_manager_dob', 'away_manager_dob']
+    def bronze_update_current_historical_records(self, comp_season_match_tuple, data_valid_to, brz_dict):
+        """
+        Doc String
+        """
+
+        update_dvt_col = f"""
+            UPDATE matches
+            SET data_valid_to_utc = '{data_valid_to}'
+            WHERE {{where_clause}}
+        """
+
+        where_clause = ""
+
+        for comp_id, season_id, match_id in comp_season_match_tuple:
+            where_clause += f'((competition_id = {comp_id}) AND (season_id = {season_id}) AND (match_id = {match_id})) OR '
+
+        update_dvt_col_full = update_dvt_col.format(where_clause = where_clause[:-4])
+
+
+        brz_dict['conn'].execute(text(update_dvt_col_full))
+        brz_dict['conn'].commit()
+
 
     def etl_matches(
             self,
             sb,
-            event_class,
-            stg_engine, 
-            stg_schema,
-            brz_connection, 
-            brz_cursor, 
-            _merge, 
-            match_class, 
+            event_pyclass,
+            brz_dict,
+            col_cleaning,
             competitions_df,
+            valid_from,
+            valid_to,
             logger
         ):
         """
@@ -110,18 +131,17 @@ class Matches():
                 comp_id_season_id_dict['season_id'][i]
             ] for i in list(comp_id_season_id_dict['competition_id'].keys())]
 
-        for _array in comp_id_season_id_list:
-            competition_id = _array[0]
-            season_id = _array[1]
+        for competition_id, season_id in comp_id_season_id_list:
 
             matches = sb.matches(competition_id=competition_id, season_id=season_id)
 
-            for col in match_class.date_columns:
-                if col in matches.columns:
-                    matches[col] = pd.to_datetime(matches[col], format="ISO8601")        
+            matches['data_valid_from_utc'] = valid_from
+            matches['data_valid_to_utc'] = None
+
+            base_matches = col_cleaning(matches, self.column_mapping)    
 
             try:
-                match_last_updated = pd.read_sql_query(f'''
+                match_last_updated_raw = pd.read_sql_query(f'''
                     SELECT 
                         COALESCE(MAX(last_updated),NULL) AS last_updated 
                     FROM 
@@ -130,39 +150,51 @@ class Matches():
                         competition_id = {competition_id} 
                     AND 
                         season_id = {season_id}
-                ''', brz_connection)['last_updated'][0]
+                ''', brz_dict['conn'])['last_updated'][0]
+
+                match_last_updated = pd.to_datetime(match_last_updated_raw) if pd.notnull(match_last_updated_raw) else None
             except:
                 match_last_updated = None
             
             if match_last_updated is None:
-                matches_df = matches
+                matches_df = base_matches
             else:
-                matches_df = matches[matches['last_updated'] > match_last_updated]
+                matches_df = base_matches[base_matches['last_updated'] >= match_last_updated]
 
-            logger.info(f"Writing matches for competition-season {competition_id}-{season_id} into {stg_schema}.matches.")
+            comp_season_match_tuple = []
+            
+            if not matches_df.empty:
+                logger.info(f"Updating any old records that are being updated.")
 
-            matches_df.to_sql(
-                'matches', 
-                con=stg_engine, 
-                if_exists='append', 
-                dtype = match_class.column_mapping, 
-                index = False
-            )
+                comp_season_match_tuple = list(zip(*[matches_df[c] for c in self.composite_keys]))
 
-            event_class.etl_events(
-                sb,
-                stg_engine, 
-                stg_schema,
-                brz_connection, 
-                brz_cursor, 
-                _merge, 
-                event_class, 
-                matches_df,
-                competition_id,
-                season_id,
-                logger
-            )
+                try:
+                    self.bronze_update_current_historical_records(comp_season_match_tuple, valid_to, brz_dict)
+                except:
+                    pass
 
-        logger.info(f"Merging all matches into bronze.matches.")
 
-        _merge(stg_schema, brz_cursor, brz_connection, match_class, 'matches')
+                logger.info(f"Appending {len(matches_df)} new row(s) to bronze.matches...")
+
+                matches_df.to_sql(
+                    'matches', 
+                    con=brz_dict['conn'],
+                    if_exists='append', 
+                    dtype=self.column_mapping, 
+                    index=False
+                )
+                brz_dict['conn'].commit()
+            else:
+                logger.info("No new records found (incoming match_updated is not newer than DB).")
+
+
+            if comp_season_match_tuple != []:
+                event_pyclass.etl_events(
+                    sb,
+                    brz_dict,
+                    comp_season_match_tuple,
+                    col_cleaning,
+                    valid_from,
+                    valid_to,
+                    logger
+                )

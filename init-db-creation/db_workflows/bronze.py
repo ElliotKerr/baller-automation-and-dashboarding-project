@@ -45,12 +45,10 @@ from statsbombpy.api_client import NoAuthWarning
 warnings.filterwarnings("ignore", category=NoAuthWarning)
 
 from statsbombpy import sb
-import sqlite3
-from sqlalchemy import create_engine, text
-import time
+from sqlalchemy import create_engine
 from datetime import datetime, timedelta, timezone
 
-from utils.general import _merge, create_db_engine_func, DB_ENGINE_STRING, col_cleaning
+from utils.general import create_db_engine_func, DB_ENGINE_STRING, col_cleaning
 from utils.competitions import Competitions
 from utils.matches import Matches
 from utils.events import Events
@@ -62,7 +60,6 @@ event_pyclass = Events()
 
 
 def bronze_main(
-        stg_schema : str, 
         brz_schema : str, 
         logger, 
         competition_id : int = None, 
@@ -71,8 +68,6 @@ def bronze_main(
     """
     Doc String
     """
-    start_time = time.time()
-
     brz_engine = create_db_engine_func(brz_schema, DB_ENGINE_STRING, create_engine)
     brz_dict = {'schema': brz_schema, 'engine': brz_engine, 'conn': brz_engine.connect()}
 
@@ -93,27 +88,24 @@ def bronze_main(
 
 
     competitions_df = comp_pyclass.etl_competitions(
-        brz_dict, 
-        comp_pyclass, 
+        brz_dict,
         competitions,
         col_cleaning,
         valid_to,
         logger
-    ) 
+    )
 
 
-    # match_pyclass.etl_matches(
-    #     sb,
-    #     event_pyclass,
-    #     stg_engine, 
-    #     stg_schema,
-    #     brz_connection, 
-    #     brz_cursor, 
-    #     _merge, 
-    #     match_pyclass, 
-    #     competitions_df,
-    #     logger
-    # )
+    match_pyclass.etl_matches(
+        sb,
+        event_pyclass,
+        brz_dict,
+        col_cleaning,
+        competitions_df,
+        valid_from,
+        valid_to,
+        logger
+    )
 
     brz_dict['conn'].close()
     brz_dict['engine'].dispose()

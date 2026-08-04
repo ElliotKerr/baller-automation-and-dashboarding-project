@@ -31,8 +31,6 @@ if str(PROJECT_ROOT) not in sys.path:
 
 
 import sqlite3
-from sqlalchemy import create_engine
-import pandas as pd
 import logging
 import os
 from db_workflows.bronze import bronze_main
@@ -40,7 +38,6 @@ from db_workflows.silver import silver_main
 
 
 SCHEMAS = {
-    'STAGING_SCHEMA' : 'staging',
     'BRONZE_SCHEMA' : 'bronze', 
     'SILVER_SCHEMA' : 'silver', 
     'GOLD_SCHEMA' : 'gold'
@@ -87,7 +84,7 @@ if __name__ == '__main__':
             create_dbs(schema_names)
 
 
-    bronze_main(SCHEMAS['STAGING_SCHEMA'], SCHEMAS['BRONZE_SCHEMA'], get_logger("BRONZE"), competition_id = 43, season_id = 106)
+    bronze_main(SCHEMAS['BRONZE_SCHEMA'], get_logger("BRONZE"), competition_id = 43, season_id = 106)
 
     silver_main(
         SCHEMAS['SILVER_SCHEMA'], SCHEMAS['BRONZE_SCHEMA'], get_logger("SILVER")
