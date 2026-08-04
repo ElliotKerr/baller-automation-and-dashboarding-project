@@ -98,7 +98,7 @@ class Competitions():
         if last_updated is None:
             competitions_df = base_competitions
         else:
-            competitions_df = base_competitions[base_competitions['match_updated'] >= last_updated]
+            competitions_df = base_competitions[base_competitions['match_updated'] > last_updated]
 
 
         if not competitions_df.empty:

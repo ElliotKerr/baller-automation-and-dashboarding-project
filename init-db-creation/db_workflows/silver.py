@@ -36,16 +36,18 @@ import time
 from datetime import datetime, timedelta, timezone
 import pandas as pd
 
-from utils.general import _merge, create_db_engine_func, DB_ENGINE_STRING, col_cleaning
+from utils.general import create_db_engine_func, DB_ENGINE_STRING, col_cleaning
 
 from utils.competitions import Competitions
 from utils.matches import Matches
 from utils.events import Events
+from utils.silver import Silver
 
 # Class storing the fields and composite key used in the merge procedure.
 comp_pyclass = Competitions()
 match_pyclass = Matches()
 event_pyclass = Events()
+silver_pyclass = Silver()
 
 def extract_field_names(table_class):
     """
@@ -53,26 +55,6 @@ def extract_field_names(table_class):
     """
     return list(table_class.column_mapping.keys())
 
-
-def clean_bronze_tables(slv_dict, logger, table_name):
-    query = f"""
-        SELECT 
-            *
-        FROM 
-            bronze.{table_name} 
-        WHERE 
-            data_valid_to_utc IS NULL    
-    """
-    try:
-        slv_dict['conn'].execute(text(f"DROP TABLE main.{table_name}"))
-    except:
-        pass
-    
-    slv_dict['conn'].execute(text(f"CREATE TABLE main.{table_name} AS {query}"))
-
-    slv_dict['conn'].commit()
-
-    logger.info(f"Created silver.{table_name} using the cleaned version of bronze.{table_name}")
 
 
 def silver_main(
@@ -91,12 +73,17 @@ def silver_main(
 
     logger.info(f"Cleaning the Bronze tables into Silver.")
 
-    clean_bronze_tables(slv_dict, logger, 'competitions')
-    clean_bronze_tables(slv_dict, logger, 'matches')
-    clean_bronze_tables(slv_dict, logger, 'events')
+    silver_pyclass.clean_bronze_tables(slv_dict, logger, 'competitions')
+    silver_pyclass.clean_bronze_tables(slv_dict, logger, 'matches')
+    silver_pyclass.clean_bronze_tables(slv_dict, logger, 'events')
+
 
     slv_dict['conn'].execute(text("DETACH DATABASE bronze"))
     slv_dict['conn'].commit()
+
+
+    silver_pyclass.create_combined_table(slv_dict, logger)
+
 
     slv_dict['conn'].close()
     slv_dict['engine'].dispose()

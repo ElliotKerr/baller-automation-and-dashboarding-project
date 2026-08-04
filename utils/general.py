@@ -120,59 +120,6 @@ def create_required_table(logger, source_dict, target_dict, table):
         logger.info(f"Successfully created table {table}' in {target_dict['schema']}")
 
 
-def _merge(
-        logger, 
-        source_dict,
-        target_dict, 
-        _class, 
-        table, 
-        valid_to_timestamp
-    ):
-    """
-    Doc String
-    """
-    table_exists = check_table_exists(logger, target_dict['conn'], table)
-
-    logger.info(table_exists)
-
-    if not table_exists:
-        logger.info("table doesn't exist")
-        create_required_table(logger, source_dict, target_dict, table)
-
-    _fields = list(_class.column_mapping.keys())
-    _cols_str = ", ".join(f'"{c}"' for c in _fields)
-    _conflict_keys_str = ", ".join(f'"{k}"' for k in _class.composite_keys)
-
-
-    # Step 2: Expire existing active records matching keys in the source
-    join_conditions = " AND ".join(
-        [f'{table}."{k}" = {source_dict['schema']}.{table}."{k}"' for k in _class.composite_keys]
-    )
-    try:
-        update_query = f"""
-            UPDATE {table}
-            SET data_valid_to_utc = '{valid_to_timestamp}'
-            WHERE data_valid_to_utc IS NULL
-            AND EXISTS (
-                SELECT 1 FROM {source_dict['schema']}.{table}
-                WHERE {join_conditions}
-            )
-        """
-        target_dict['conn'].execute(text(update_query))
-        target_dict['conn'].commit()
-    except:
-        pass
-
-    # Step 3: Insert all new rows from the source schema
-    insert_query = f"""
-        INSERT INTO {table}
-        SELECT * FROM {source_dict['schema']}.{table}
-    """
-    target_dict['conn'].execute(text(insert_query))
-
-    target_dict['conn'].commit()
-
-
 def create_db_engine_func(db_name, engine_string, create_engine):
     """
     Doc String

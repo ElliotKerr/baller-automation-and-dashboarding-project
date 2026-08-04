@@ -159,7 +159,7 @@ class Matches():
             if match_last_updated is None:
                 matches_df = base_matches
             else:
-                matches_df = base_matches[base_matches['last_updated'] >= match_last_updated]
+                matches_df = base_matches[base_matches['last_updated'] > match_last_updated]
 
             comp_season_match_tuple = []
             
