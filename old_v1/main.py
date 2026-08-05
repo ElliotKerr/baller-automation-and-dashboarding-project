@@ -1,24 +1,20 @@
 """
-Orchestrate Initial Database Creation Workflows
-
+Run Initial Database Creation Workflows
 
 Overview
-Main ETL workflow to orchestrate the medallion structured pipeline for extracting competition, match and event information from the Statsbombpy package.
-Currently using 1 competition (FIFA World Cup 2022), creating a Data Warehouse to store the data in SQLite.
+
 
 
 Workflow Description
-1. Creates the SQLite databases if they don't already exist.
-2. Calls bronze_main from the bronze workflow to create the bronze layer
 
 
 Requirements/Prerequistes
-- Install requirements.txt
-- Read through the README.md for more information on the project
+
+
 
 
 Author
-Elliot Kerr - 03/08/2026
+
 """
 # Only needed in windows:
 import sys
@@ -31,17 +27,20 @@ if str(PROJECT_ROOT) not in sys.path:
 
 
 import sqlite3
+from sqlalchemy import create_engine
+import pandas as pd
 import logging
 import os
 from db_workflows.bronze import bronze_main
 from db_workflows.silver import silver_main
 
+STAGING_SCHEMA = 'staging'
+BRONZE_SCHEMA = 'bronze'
+SILVER_SCHEMA = 'silver'
+GOLD_SCHEMA = 'gold'
 
-SCHEMAS = {
-    'BRONZE_SCHEMA' : 'bronze', 
-    'SILVER_SCHEMA' : 'silver', 
-    'GOLD_SCHEMA' : 'gold'
-}
+SCHEMAS = [STAGING_SCHEMA, BRONZE_SCHEMA, SILVER_SCHEMA, GOLD_SCHEMA]
+DB_NAMES = ['staging', 'bronze', 'silver', 'gold']
 
 
 def create_dbs(db_name):
@@ -77,16 +76,18 @@ def get_logger(logging_type):
 if __name__ == '__main__':
     main_logger = get_logger(" MAIN ")
     
-    for schema_names in list(SCHEMAS.values()):
+    for i in range(len(SCHEMAS)):
+        db_name = DB_NAMES[i]
+        schema = SCHEMAS[i]
 
-        if f"{schema_names}.db" not in os.listdir("./dbs"):
-            main_logger.info(f"Creating database '{schema_names}'")
-            create_dbs(schema_names)
+        if f"{db_name}.db" not in os.listdir("./dbs"):
+            main_logger.info(f"Creating database '{schema}'")
+            create_dbs(schema)
 
 
-    bronze_main(SCHEMAS['BRONZE_SCHEMA'], get_logger("BRONZE"), competition_id = 43, season_id = 106)
+    bronze_main(STAGING_SCHEMA, BRONZE_SCHEMA, get_logger("BRONZE"), competition_id = 43, season_id = 106)
 
     silver_main(
-        SCHEMAS['SILVER_SCHEMA'], SCHEMAS['BRONZE_SCHEMA'], get_logger("SILVER")
+        SILVER_SCHEMA, BRONZE_SCHEMA, get_logger("SILVER")
     )
     

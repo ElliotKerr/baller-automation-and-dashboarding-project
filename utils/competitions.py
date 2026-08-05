@@ -18,7 +18,7 @@ Author
 """
 
 
-from sqlalchemy import String, Integer, DateTime
+from sqlalchemy import String, Integer, DateTime, Boolean, text
 import pandas as pd
 
 class Competitions():
@@ -31,62 +31,93 @@ class Competitions():
         "country_name": String,
         "competition_name": String,
         "competition_gender": String,
-        "competition_youth": String,
-        "competition_international": String,
+        "competition_youth": Boolean,
+        "competition_international": Boolean,
         "season_name": String,
         "match_updated": DateTime,
         "match_updated_360": DateTime,
         "match_available_360": DateTime,
         "match_available": DateTime,
+        "data_valid_from_utc": DateTime,
+        "data_valid_to_utc": DateTime,
     }
 
-    date_columns = ['match_updated', 'match_updated_360', 'match_available_360', 'match_available']
+    def bronze_update_current_historical_records(self, competitions_df, data_valid_to, brz_dict):
+        """
+        Doc String
+        """
+        comp_season_tuple = list(zip(*[competitions_df[c] for c in self.composite_keys]))
+
+        update_dvt_col = f"""
+            UPDATE competitions
+            SET data_valid_to_utc = '{data_valid_to}'
+            WHERE {{where_clause}}
+        """
+
+        where_clause = ""
+
+        for comp_id, season_id in comp_season_tuple:
+            where_clause += f'((competition_id = {comp_id}) AND (season_id = {season_id})) OR '
+
+        update_dvt_col_full = update_dvt_col.format(where_clause = where_clause[:-4])
+
+
+        brz_dict['conn'].execute(text(update_dvt_col_full))
+        brz_dict['conn'].commit()
+
 
     def etl_competitions(
             self, 
-            staging_engine, 
-            stg_schema,
-            brz_connection, 
-            brz_cursor, 
-            _merge, 
-            comp_class, 
+            brz_dict, 
             base_competitions,
+            col_cleaner_function,
+            data_valid_to,
             logger
         ):
         """
         Doc String
         """
-        for col in comp_class.date_columns:
-            if col in base_competitions.columns:
-                base_competitions[col] = pd.to_datetime(base_competitions[col], format="ISO8601")
+        base_competitions = col_cleaner_function(base_competitions, self.column_mapping)
+
+        last_updated = None
 
         try:
-            last_updated = pd.read_sql_query(f'''
+            last_updated_raw = pd.read_sql_query(f'''
                 SELECT 
                     COALESCE(MAX(match_updated),NULL) AS last_updated 
                 FROM    
                     competitions
-            ''', brz_connection)['last_updated'][0]
+            ''', brz_dict['conn'])['last_updated'][0]
+
+            last_updated = pd.to_datetime(last_updated_raw) if pd.notnull(last_updated_raw) else None
         except:
-            last_updated = None
+            pass
+
+        logger.info(f"Last Updated: {last_updated}")
 
         if last_updated is None:
             competitions_df = base_competitions
         else:
             competitions_df = base_competitions[base_competitions['match_updated'] > last_updated]
 
-        logger.info(f"Writing competitions into the staging table!")
 
-        competitions_df.to_sql(
-            'competitions', 
-            con=staging_engine, 
-            if_exists='replace', 
-            dtype = comp_class.column_mapping, 
-            index = False
-        )
+        if not competitions_df.empty:
+            logger.info(f"Updating any old records that are being updated.")
+            try:
+                self.bronze_update_current_historical_records(competitions_df, data_valid_to, brz_dict)
+            except:
+                pass
 
-        logger.info(f"Merging {stg_schema}.competitions into competitions")
+            logger.info(f"Appending {len(competitions_df)} new row(s) to bronze.competitions...")
+            competitions_df.to_sql(
+                'competitions', 
+                con=brz_dict['conn'],
+                if_exists='append', 
+                dtype=self.column_mapping, 
+                index=False
+            )
+            brz_dict['conn'].commit()
+        else:
+            logger.info("No new records found (incoming match_updated is not newer than DB).")
 
-        _merge(stg_schema, brz_cursor, brz_connection, comp_class, 'competitions')
-    
         return competitions_df

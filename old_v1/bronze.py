@@ -45,10 +45,11 @@ from statsbombpy.api_client import NoAuthWarning
 warnings.filterwarnings("ignore", category=NoAuthWarning)
 
 from statsbombpy import sb
+import sqlite3
 from sqlalchemy import create_engine
-from datetime import datetime, timedelta, timezone
+import time
 
-from utils.general import create_db_engine_func, DB_ENGINE_STRING, col_cleaning
+from utils.general import clean_staging, _merge, create_db_engine_func, create_db_connection_func, DB_ENGINE_STRING
 from utils.competitions import Competitions
 from utils.matches import Matches
 from utils.events import Events
@@ -60,6 +61,7 @@ event_pyclass = Events()
 
 
 def bronze_main(
+        stg_schema : str, 
         brz_schema : str, 
         logger, 
         competition_id : int = None, 
@@ -68,11 +70,18 @@ def bronze_main(
     """
     Doc String
     """
-    brz_engine = create_db_engine_func(brz_schema, DB_ENGINE_STRING, create_engine)
-    brz_dict = {'schema': brz_schema, 'engine': brz_engine, 'conn': brz_engine.connect()}
+    start_time = time.time()
 
-    valid_from = datetime.now(timezone.utc).replace(tzinfo=None)
-    valid_to = valid_from - timedelta(milliseconds=1)
+    stg_engine = create_db_engine_func(stg_schema, DB_ENGINE_STRING, create_engine)
+    stg_connection, stg_cursor = create_db_connection_func(stg_schema, sqlite3)
+
+
+    brz_engine = create_db_engine_func(brz_schema, DB_ENGINE_STRING, create_engine)
+    brz_connection, brz_cursor = create_db_connection_func(brz_schema, sqlite3)
+
+    brz_cursor.execute(f"ATTACH DATABASE './dbs/{stg_schema}.db' AS {stg_schema}")
+
+    clean_staging(stg_cursor, stg_connection)
 
     competitions = sb.competitions()
 
@@ -83,29 +92,34 @@ def bronze_main(
         ].copy()
 
 
-    competitions['data_valid_from_utc'] = valid_from
-    competitions['data_valid_to_utc'] = None
-
-
     competitions_df = comp_pyclass.etl_competitions(
-        brz_dict,
+        stg_engine, 
+        stg_schema,
+        brz_connection, 
+        brz_cursor, 
+        _merge, 
+        comp_pyclass, 
         competitions,
-        col_cleaning,
-        valid_to,
         logger
-    )
+    ) 
 
 
     match_pyclass.etl_matches(
         sb,
         event_pyclass,
-        brz_dict,
-        col_cleaning,
+        stg_engine, 
+        stg_schema,
+        brz_connection, 
+        brz_cursor, 
+        _merge, 
+        match_pyclass, 
         competitions_df,
-        valid_from,
-        valid_to,
         logger
     )
 
-    brz_dict['conn'].close()
-    brz_dict['engine'].dispose()
+
+    brz_cursor.execute(f"DETACH DATABASE {stg_schema}")
+
+
+    stg_connection.close()
+    brz_connection.close()
