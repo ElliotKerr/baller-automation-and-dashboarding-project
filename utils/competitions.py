@@ -79,7 +79,7 @@ class Competitions():
         brz_dict['conn'].commit()
 
 
-    def etl_competitions(
+    def bronze_competitions(
             self, 
             brz_dict: dict, 
             base_competitions: pd.DataFrame,
@@ -109,7 +109,7 @@ class Competitions():
         try:
             last_updated_raw = pd.read_sql_query(f'''
                 SELECT 
-                    COALESCE(MAX(match_updated),NULL) AS last_updated 
+                    COALESCE(MAX(match_updated),NULL) AS last_updated
                 FROM    
                     competitions
             ''', brz_dict['conn'])['last_updated'][0]
@@ -134,7 +134,10 @@ class Competitions():
                 pass
 
             logger.info(f"Appending {len(competitions_df)} new row(s) to bronze.competitions...")
-            competitions_df.to_sql(
+
+            competitions_clean_df = competitions_df.astype(object).where(pd.notnull(competitions_df), None)
+
+            competitions_clean_df.to_sql(
                 'competitions', 
                 con=brz_dict['conn'],
                 if_exists='append', 

@@ -95,7 +95,7 @@ def bronze_main(
     competitions['data_valid_to_utc'] = None
 
 
-    competitions_df = comp_pyclass.etl_competitions(
+    competitions_df = comp_pyclass.bronze_competitions(
         brz_dict,
         competitions,
         valid_to,

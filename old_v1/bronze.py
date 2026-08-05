@@ -92,7 +92,7 @@ def bronze_main(
         ].copy()
 
 
-    competitions_df = comp_pyclass.etl_competitions(
+    competitions_df = comp_pyclass.bronze_competitions(
         stg_engine, 
         stg_schema,
         brz_connection, 
@@ -104,7 +104,7 @@ def bronze_main(
     ) 
 
 
-    match_pyclass.etl_matches(
+    match_pyclass.bronze_matches(
         sb,
         event_pyclass,
         stg_engine, 
