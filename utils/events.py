@@ -175,11 +175,11 @@ class Events():
         brz_dict['conn'].execute(text(update_dvt_col))
         brz_dict['conn'].commit()
 
-    def etl_events(
+    def bronze_events(
             self,
             sb,
             brz_dict,
-            comp_season_match_tuple,
+            match_id_list,
             col_cleaning,
             valid_from,
             valid_to,
@@ -188,7 +188,7 @@ class Events():
         """
         Doc String
         """
-        for _, __, match_id in comp_season_match_tuple:
+        for match_id in match_id_list:
             logger.info(f"Starting Events extraction for match {match_id}")
             events = sb.events(match_id=match_id)
 

@@ -86,7 +86,7 @@ competitions = sb.competitions()
 
 competitions = competitions[(competitions['competition_id'] == 43) & (competitions['season_id'] == 106)].copy()
 
-competitions_df = comp.etl_competitions(connection, cursor, engine, _merge, comp, competitions)
+competitions_df = comp.bronze_competitions(connection, cursor, engine, _merge, comp, competitions)
 
 
 comp_id_season_id_df = competitions_df[['competition_id', 'season_id']]

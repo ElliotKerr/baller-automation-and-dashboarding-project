@@ -22,7 +22,7 @@ import pandas as pd
 
 class Matches():
 
-    composite_keys = ["competition_id", "season_id", 'match_id']
+    composite_keys = ['match_id']
 
     column_mapping = {
         'match_id': Integer, 
@@ -84,30 +84,23 @@ class Matches():
         "data_valid_to_utc": DateTime
     }
 
-    def bronze_update_current_historical_records(self, comp_season_match_tuple, data_valid_to, brz_dict):
+    def bronze_update_current_historical_records(self, match_id_list, data_valid_to, brz_dict):
         """
         Doc String
         """
 
-        update_dvt_col = f"""
+        update_dvt_col_full = f"""
             UPDATE matches
             SET data_valid_to_utc = '{data_valid_to}'
-            WHERE {{where_clause}}
+            WHERE match_id IN ({", ".join(f"'{i}'" for i in match_id_list)})
         """
-
-        where_clause = ""
-
-        for comp_id, season_id, match_id in comp_season_match_tuple:
-            where_clause += f'((competition_id = {comp_id}) AND (season_id = {season_id}) AND (match_id = {match_id})) OR '
-
-        update_dvt_col_full = update_dvt_col.format(where_clause = where_clause[:-4])
 
 
         brz_dict['conn'].execute(text(update_dvt_col_full))
         brz_dict['conn'].commit()
 
 
-    def etl_matches(
+    def bronze_matches(
             self,
             sb,
             event_pyclass,
@@ -166,17 +159,19 @@ class Matches():
             if not matches_df.empty:
                 logger.info(f"Updating any old records that are being updated.")
 
-                comp_season_match_tuple = list(zip(*[matches_df[c] for c in self.composite_keys]))
+                match_id_list = matches_df['match_id'].tolist()
 
                 try:
-                    self.bronze_update_current_historical_records(comp_season_match_tuple, valid_to, brz_dict)
+                    self.bronze_update_current_historical_records(match_id_list, valid_to, brz_dict)
                 except:
                     pass
 
 
                 logger.info(f"Appending {len(matches_df)} new row(s) to bronze.matches...")
 
-                matches_df.to_sql(
+                matches_clean_df = matches_df.astype(object).where(pd.notnull(matches_df), None)
+
+                matches_clean_df.to_sql(
                     'matches', 
                     con=brz_dict['conn'],
                     if_exists='append', 
@@ -188,11 +183,11 @@ class Matches():
                 logger.info("No new records found (incoming match_updated is not newer than DB).")
 
 
-            if comp_season_match_tuple != []:
-                event_pyclass.etl_events(
+            if match_id_list != []:
+                event_pyclass.bronze_events(
                     sb,
                     brz_dict,
-                    comp_season_match_tuple,
+                    match_id_list,
                     col_cleaning,
                     valid_from,
                     valid_to,
