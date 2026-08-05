@@ -1,24 +1,26 @@
 """
-Script Doc String
+Events utils
 
 Overview
-
-
-Workflow Description
-
+File consists of any functions, variables and dictionaries that relate to the events table, collected inside a class to allow for simpler uses in the workflows.
 
 
 Requirements/Prerequistes
-
-
+- Install requirements.txt
 
 
 Author
+Elliot Kerr - 05/08/2026
 
 """
-
 from sqlalchemy import String, Integer, DateTime, Date, text, Boolean, JSON, Float
 import pandas as pd
+from datetime import datetime
+import logging
+from typing import List
+from statsbombpy import sb
+
+from utils.general import col_cleaning
 
 class Events():
 
@@ -161,11 +163,24 @@ class Events():
         "data_valid_to_utc": DateTime
     }
 
-    def bronze_update_current_historical_records(self, id_list, data_valid_to, brz_dict):
+    def bronze_update_current_historical_records(
+            self, 
+            brz_dict: dict, 
+            id_list: List[str], 
+            data_valid_to: datetime
+        ):
         """
-        Doc String
-        """
+        Function updates any records in the events table that will have newer records added in the refresh.
+        Updates the data_valid_to_utc field from None to the data_valid_to value.
 
+        Args:
+        brz_dict - Dictionary that includes the schema name, engine and connection for the bronze database.
+        id_list - List
+        data_valid_to - Datetime value initialised in the bronze_main function
+
+        Returns:
+        No output
+        """
         update_dvt_col = f"""
             UPDATE events
             SET data_valid_to_utc = '{data_valid_to}'
@@ -177,16 +192,27 @@ class Events():
 
     def etl_events(
             self,
-            sb,
-            brz_dict,
-            comp_season_match_tuple,
-            col_cleaning,
-            valid_from,
-            valid_to,
-            logger
-        ):
+            brz_dict: dict,
+            match_id_list: List[str],
+            valid_from: datetime,
+            valid_to: datetime,
+            logger: logging
+        ) -> None:
         """
-        Doc String
+        Function:
+            - load the events data and clean
+            - updates any records currently in the db for each match
+            - appends the new records to the bronze.matches table.
+
+        Args:
+        brz_dict - Dictionary that includes the schema name, engine and connection for the bronze database.
+        match_id_list - List of match ids that we want to extract events for
+        valid_from - Datetime value initialised in the bronze_main function
+        valid_to - Datetime value initialised in the bronze_main function
+        logger - Formatted Logging Instance "BRONZE"
+
+        Returns:
+        No output
         """
         for _, __, match_id in comp_season_match_tuple:
             logger.info(f"Starting Events extraction for match {match_id}")

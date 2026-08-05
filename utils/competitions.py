@@ -1,25 +1,24 @@
 """
-Script Doc String
+Competitions utils
 
 Overview
-
-
-Workflow Description
-
+File consists of any functions, variables and dictionaries that relate to the competitions table, collected inside a class to allow for simpler uses in the workflows.
 
 
 Requirements/Prerequistes
-
-
+- Install requirements.txt
 
 
 Author
+Elliot Kerr - 05/08/2026
 
 """
-
-
 from sqlalchemy import String, Integer, DateTime, Boolean, text
 import pandas as pd
+from datetime import datetime
+import logging
+
+from utils.general import col_cleaning
 
 class Competitions():
 
@@ -42,9 +41,23 @@ class Competitions():
         "data_valid_to_utc": DateTime,
     }
 
-    def bronze_update_current_historical_records(self, competitions_df, data_valid_to, brz_dict):
+    def bronze_update_current_historical_records(
+            self, 
+            brz_dict: dict,
+            competitions_df: pd.DataFrame, 
+            data_valid_to: datetime, 
+        ) -> None:
         """
-        Doc String
+        Function updates any records in the competitions table that will have newer records added in the refresh.
+        Updates the data_valid_to_utc field from None to the data_valid_to value.
+
+        Args:
+        brz_dict - Dictionary that includes the schema name, engine and connection for the bronze database.
+        competitions_df - Dataframe containing the records that need to be updated.
+        data_valid_to - Datetime value initialised in the bronze_main function
+
+        Returns:
+        No output
         """
         comp_season_tuple = list(zip(*[competitions_df[c] for c in self.composite_keys]))
 
@@ -68,16 +81,28 @@ class Competitions():
 
     def etl_competitions(
             self, 
-            brz_dict, 
-            base_competitions,
-            col_cleaner_function,
-            data_valid_to,
-            logger
-        ):
+            brz_dict: dict, 
+            base_competitions: pd.DataFrame,
+            data_valid_to: datetime,
+            logger: logging
+        ) -> pd.DataFrame:
         """
-        Doc String
+        Function:
+            - transforms the competitions data that has been loaded from the package
+            - filters for newly updated records
+            - updates any old records that are due to be updated
+            - appends the new records to the bronze.competitions table.
+
+        Args:
+        brz_dict - Dictionary that includes the schema name, engine and connection for the bronze database.
+        base_competitions - Dataframe from sb.competitions().
+        data_valid_to - Datetime value initialised in the bronze_main function
+        logger - Formatted Logging Instance "BRONZE"
+
+        Returns:
+        competitions_df - Returns the competitions to use in the matches function, which will ensure all competitions and seasons are loaded.
         """
-        base_competitions = col_cleaner_function(base_competitions, self.column_mapping)
+        base_competitions = col_cleaning(base_competitions, self.column_mapping)
 
         last_updated = None
 
@@ -104,7 +129,7 @@ class Competitions():
         if not competitions_df.empty:
             logger.info(f"Updating any old records that are being updated.")
             try:
-                self.bronze_update_current_historical_records(competitions_df, data_valid_to, brz_dict)
+                self.bronze_update_current_historical_records(brz_dict, competitions_df, data_valid_to)
             except:
                 pass
 

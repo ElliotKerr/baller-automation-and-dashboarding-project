@@ -19,6 +19,7 @@ Requirements/Prerequistes
 
 Author
 Elliot Kerr - 03/08/2026
+
 """
 # Only needed in windows:
 import sys
@@ -44,18 +45,32 @@ SCHEMAS = {
 }
 
 
-def create_dbs(db_name):
+def create_dbs(db_name:str) -> None:
     """
-    Doc String
+    Function opens a connection to a db, which then creates the db if it doesn't already exist, then closes the connection.
+
+    *Postgres: creating the db is not required, although there would need to be a CREATE SCHEMA query executed instead.*
+
+    Args:
+    db_name - Name of the database that needs to be created
+
+    Returns:
+    No output
     """
     connection = sqlite3.connect(f'./dbs/{db_name}.db')
 
     connection.close()
 
 
-def get_logger(logging_type):
+def get_logger(logging_type: str) -> logging:
     """
-    Doc String
+    Function used to create a logger. This is done through the function to allow for improved separation between layers.
+
+    Args:
+    logging_type - Name of the logger required i.e. BRONZE, SILVER, ...
+
+    Returns:
+    logger - Formatted Logging Instance
     """
     logger = logging.getLogger(logging_type)
 

@@ -1,24 +1,27 @@
 """
-Script Doc String
+Matches utils
 
 Overview
-
-
-Workflow Description
-
+File consists of any functions, variables and dictionaries that relate to the matches table, collected inside a class to allow for simpler uses in the workflows.
 
 
 Requirements/Prerequistes
-
-
+- Install requirements.txt
 
 
 Author
+Elliot Kerr - 05/08/2026
 
 """
-
 from sqlalchemy import String, Integer, DateTime, Date, text
 import pandas as pd
+from datetime import datetime
+import logging
+from typing import List
+from statsbombpy import sb
+
+from utils.general import col_cleaning
+from utils.events import Events
 
 class Matches():
 
@@ -84,12 +87,25 @@ class Matches():
         "data_valid_to_utc": DateTime
     }
 
-    def bronze_update_current_historical_records(self, comp_season_match_tuple, data_valid_to, brz_dict):
+    def bronze_update_current_historical_records(
+            self, 
+            brz_dict: dict,
+            match_id_list: List[str], 
+            data_valid_to: datetime, 
+        ) -> None:
         """
-        Doc String
-        """
+        Function updates any records in the matches table that will have newer records added in the refresh.
+        Updates the data_valid_to_utc field from None to the data_valid_to value.
 
-        update_dvt_col = f"""
+        Args:
+        brz_dict - Dictionary that includes the schema name, engine and connection for the bronze database.
+        match_id_list - List of match ids we want to load.
+        data_valid_to - Datetime value initialised in the bronze_main function
+
+        Returns:
+        No output
+        """
+        update_dvt_col_full = f"""
             UPDATE matches
             SET data_valid_to_utc = '{data_valid_to}'
             WHERE {{where_clause}}
@@ -109,17 +125,31 @@ class Matches():
 
     def etl_matches(
             self,
-            sb,
-            event_pyclass,
-            brz_dict,
-            col_cleaning,
-            competitions_df,
-            valid_from,
-            valid_to,
-            logger
-        ):
+            event_pyclass: Events,
+            brz_dict: dict,
+            competitions_df: pd.DataFrame,
+            valid_from: datetime,
+            valid_to: datetime,
+            logger: logging
+        ) -> None:
         """
-        Doc String
+        Function:
+            - load the matches data and clean
+            - filters for newly updated records
+            - updates any old records that are due to be updated
+            - appends the new records to the bronze.matches table.
+            - starts the events extraction for these matches.
+
+        Args:
+        event_pyclass - Events class
+        brz_dict - Dictionary that includes the schema name, engine and connection for the bronze database.
+        competitions_df - Competitions dataframe used to obtain all competitions and seasons required from bronze
+        valid_from - Datetime value initialised in the bronze_main function
+        valid_to - Datetime value initialised in the bronze_main function
+        logger - Formatted Logging Instance "BRONZE"
+
+        Returns:
+        No output
         """
         comp_id_season_id_df = competitions_df[['competition_id', 'season_id']]
 
@@ -161,15 +191,14 @@ class Matches():
             else:
                 matches_df = base_matches[base_matches['last_updated'] > match_last_updated]
 
-            comp_season_match_tuple = []
-            
+
             if not matches_df.empty:
                 logger.info(f"Updating any old records that are being updated.")
 
                 comp_season_match_tuple = list(zip(*[matches_df[c] for c in self.composite_keys]))
 
                 try:
-                    self.bronze_update_current_historical_records(comp_season_match_tuple, valid_to, brz_dict)
+                    self.bronze_update_current_historical_records(brz_dict, match_id_list, valid_to)
                 except:
                     pass
 
@@ -188,12 +217,10 @@ class Matches():
                 logger.info("No new records found (incoming match_updated is not newer than DB).")
 
 
-            if comp_season_match_tuple != []:
-                event_pyclass.etl_events(
-                    sb,
+            if match_id_list != []:
+                event_pyclass.bronze_events(
                     brz_dict,
-                    comp_season_match_tuple,
-                    col_cleaning,
+                    match_id_list,
                     valid_from,
                     valid_to,
                     logger
