@@ -2,19 +2,28 @@
 Bronze Tables Creation ETL
 
 Overview
-
+ETL orchestrates the bronze layer workflows, extracting and loading the competitions, matches and events data from the StatsBombPY package.
 
 Workflow Description
-1. Extracts the competitions data from sb.competitions(), filtering specifically for competition_id = 43 and season_id = 106
-2. Creates a new dataframe for records that have a match_updated greater than the max value in bronze.competitions
+1. Sets up the engine and connections to the bronze database file.
+2. Extracts the competitions data from sb.competitions(), filtering for the competition and season ids if they are passed into the function.
+3. Adds 2 new fields, data_valid_from_utc and data_valid_to_utc, which are used for SCD tracking.
+4. Uses the bronze_competitions function in the Competitions class to transform and append the competitions data into the bronze.competitions table.
+
+5. Using the competitions data, uses the bronze_matches function in the Matches class to complete the same process as for Competitions.
+6. bronze_matches also calls bronze_events from the Events class, and the process follows a similar pattern to the others.
+
+7. Closes the db connections to prevent connection issues in the future.
 
 
 Requirements/Prerequistes
-
-
+- utils.general, .competitions, .matches and .events
+- Install requirements.txt
+- Read through the README.md for more information on the project
 
 
 Author
+Elliot Kerr - 05/08/2026
 
 """
 # Only needed in windows:
@@ -35,6 +44,7 @@ warnings.filterwarnings("ignore", category=NoAuthWarning)
 from statsbombpy import sb
 from sqlalchemy import create_engine
 from datetime import datetime, timedelta, timezone
+import logging
 
 from utils.general import create_db_engine_func, DB_ENGINE_STRING, col_cleaning
 from utils.competitions import Competitions
@@ -49,12 +59,22 @@ event_pyclass = Events()
 
 def bronze_main(
         brz_schema : str, 
-        logger, 
+        logger: logging, 
         competition_id : int = None, 
         season_id : int = None
-    ):
+    ) -> None :
     """
-    Doc String
+    Function orchestrates the bronze layer, as outlined in the Workflow Description in the file heading.
+
+    Args:
+    brz_schema - This is the name of the bronze database, incase another name is preferred for the bronze layer.
+    logger - Formatted Logging Instance "BRONZE"
+
+    competition_id | None - Exists when specific competitions are required.
+    season_id | None - Exists when specific seasons are required.
+
+    Returns:
+    No output
     """
     brz_engine = create_db_engine_func(brz_schema, DB_ENGINE_STRING, create_engine)
     brz_dict = {'schema': brz_schema, 'engine': brz_engine, 'conn': brz_engine.connect()}
@@ -78,17 +98,14 @@ def bronze_main(
     competitions_df = comp_pyclass.bronze_competitions(
         brz_dict,
         competitions,
-        col_cleaning,
         valid_to,
         logger
     )
 
 
     match_pyclass.bronze_matches(
-        sb,
         event_pyclass,
         brz_dict,
-        col_cleaning,
         competitions_df,
         valid_from,
         valid_to,
