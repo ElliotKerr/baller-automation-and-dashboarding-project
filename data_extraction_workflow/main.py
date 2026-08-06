@@ -34,8 +34,9 @@ if str(PROJECT_ROOT) not in sys.path:
 import sqlite3
 import logging
 import os
-from db_workflows.bronze import bronze_main
-from db_workflows.silver import silver_main
+from medals.bronze import bronze_main
+from medals.silver import silver_main
+from medals.gold import gold_main
 
 
 SCHEMAS = {
@@ -110,4 +111,6 @@ if __name__ == '__main__':
     silver_main(
         SCHEMAS['SILVER_SCHEMA'], SCHEMAS['BRONZE_SCHEMA'], get_logger("SILVER")
     )
+
+    gold_main(SCHEMAS['SILVER_SCHEMA'], SCHEMAS['GOLD_SCHEMA'], get_logger(" GOLD "))
     

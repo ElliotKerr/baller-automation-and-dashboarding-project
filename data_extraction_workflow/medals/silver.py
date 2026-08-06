@@ -36,12 +36,12 @@ warnings.filterwarnings("ignore", category=NoAuthWarning)
 
 from sqlalchemy import text
 import logging
-from utils.general import create_db_engine_func, DB_ENGINE_STRING
+from data_extraction_workflow.utils.general import create_db_engine_func, DB_ENGINE_STRING
 
-from utils.competitions import Competitions
-from utils.matches import Matches
-from utils.events import Events
-from utils.silver import Silver
+from data_extraction_workflow.utils.competitions import Competitions
+from data_extraction_workflow.utils.matches import Matches
+from data_extraction_workflow.utils.events import Events
+from data_extraction_workflow.utils.silver import Silver
 
 # Class storing the fields and composite key used in the merge procedure.
 comp_pyclass = Competitions()

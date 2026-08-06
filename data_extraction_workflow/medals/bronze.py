@@ -46,10 +46,10 @@ from sqlalchemy import create_engine
 from datetime import datetime, timedelta, timezone
 import logging
 
-from utils.general import create_db_engine_func, DB_ENGINE_STRING, col_cleaning
-from utils.competitions import Competitions
-from utils.matches import Matches
-from utils.events import Events
+from data_extraction_workflow.utils.general import create_db_engine_func, DB_ENGINE_STRING
+from data_extraction_workflow.utils.competitions import Competitions
+from data_extraction_workflow.utils.matches import Matches
+from data_extraction_workflow.utils.events import Events
 
 # Class storing the fields and composite key used in the merge procedure.
 comp_pyclass = Competitions()
