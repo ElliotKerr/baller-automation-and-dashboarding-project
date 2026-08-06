@@ -54,10 +54,10 @@ import time
 import pandas as pd
 import logging
 
-from data_extraction_workflow.utils.general import clean_staging, _merge
-from data_extraction_workflow.utils.competitions import Competitions
-from data_extraction_workflow.utils.matches import Matches
-from data_extraction_workflow.utils.events import Events
+from utils.general import clean_staging, _merge
+from utils.competitions import Competitions
+from utils.matches import Matches
+from utils.events import Events
 
 logging.basicConfig(
     level=logging.INFO,

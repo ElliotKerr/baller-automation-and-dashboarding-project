@@ -21,16 +21,6 @@ Author
 Elliot Kerr - 03/08/2026
 
 """
-# Only needed in windows:
-import sys
-from pathlib import Path
-
-# Automatically find project root (1 folder up from this file) and add to sys.path
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
-
-
 import sqlite3
 import logging
 import os
