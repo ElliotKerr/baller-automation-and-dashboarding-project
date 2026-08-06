@@ -1,28 +1,24 @@
 """
-Script Doc String
+General Utils
 
 Overview
-
-
-Workflow Description
-
+Python file containing regularly used functions and variables
 
 
 Requirements/Prerequistes
-
-
-
+- Install requirements.txt
 
 Author
+Elliot Kerr - 05/08/2026
 
 """
 
-import logging
 from datetime import datetime, date
 import pandas as pd
-from sqlalchemy import String, Integer, DateTime, Float, JSON, Boolean, Date, create_engine, text
+from sqlalchemy import String, Integer, DateTime, Float, JSON, Boolean, Date, create_engine
 
 DB_ENGINE_STRING = 'sqlite:///dbs/{db_name}.db'
+
 
 SQL_PY_DTYPE_MAPPING = {
     String: str,
@@ -34,9 +30,20 @@ SQL_PY_DTYPE_MAPPING = {
     Boolean: bool
 }
 
-def col_cleaning(df, column_mapping):
+
+def col_cleaning(
+        df: pd.DataFrame, 
+        column_mapping: dict
+    ) -> pd.DataFrame:
     """
-    Doc String
+    Function identifies the columns that exist in the df, then for each column, cleans the data based on the SQLAlchemy datatypes.
+
+    Args:
+    df - Raw Dataframe that requires cleaning
+    column_mapping - SQLAlchemy datatype dictionary
+
+    Returns:
+    df - Cleaned Dataframe
     """
     target_cols = [col for col in column_mapping if col in df.columns]
     
@@ -73,56 +80,16 @@ def col_cleaning(df, column_mapping):
     return df
 
 
-def check_table_exists(logger, conn, table):
+def create_db_engine_func(db_name: str, engine_string: str):
     """
-    Lightweight check if a table exists in the target schema.
-    """
-    try:
-        # Querying sqlite_master (or main.sqlite_master) strictly targets the target DB, 
-        # ignoring any ATTACHED schemas!
-        result = conn.execute(text(
-            f"SELECT 1 FROM sqlite_master WHERE type='table' AND name='{table}'"
-        ))
-        exists = result.fetchone() is not None
-        logger.info(f"Table '{table}' exists in target DB: {exists}")
-        return exists
-    except Exception as e:
-        logger.error(f"Error checking table existence: {e}")
-        return False
+    Function creates the engine for the database connection.
 
+    Args:
+    db_name - Database name we are connecting to
+    engine_string - Engine string that allows for access to the db
 
-def create_required_table(logger, source_dict, target_dict, table):
-    """
-    Copies table DDL from source_dict schema into target_dict database.
-    """
-    # 1. Execute query and capture the Result object
-    result = target_dict['conn'].execute(text(f"""
-        SELECT sql
-        FROM {source_dict['schema']}.sqlite_master
-        WHERE type = 'table'
-        AND name = '{table}'
-    """))
-
-    # 2. Fetch row from result (NOT target_dict['conn'])
-    row = result.fetchone()
-
-    if row is None or row[0] is None:
-        logger.info(f"{target_dict['schema']}: '{table}' not found in {source_dict['schema']}.db")
-    else:
-        create_sql = row[0]
-
-        # 3. Drop existing and create table using text()
-        target_dict['conn'].execute(text(f'DROP TABLE IF EXISTS main.{table}'))
-        target_dict['conn'].execute(text(create_sql))
-        
-        # 4. Commit immediately so index creation in _merge sees the table!
-        target_dict['conn'].commit()
-        logger.info(f"Successfully created table {table}' in {target_dict['schema']}")
-
-
-def create_db_engine_func(db_name, engine_string, create_engine):
-    """
-    Doc String
+    Returns:
+    engine - SQLAlchemy engine to connect to the database specified
     """
     return create_engine(
         engine_string.format(db_name = db_name), 

@@ -1,24 +1,21 @@
 """
-Script Doc String
+Silver utils
 
 Overview
-
-
-Workflow Description
-
+File consists of any functions, variables and dictionaries that relate to the silver layer, collected inside a class to allow for simpler uses in the workflows.
 
 
 Requirements/Prerequistes
-
-
+- Install requirements.txt
 
 
 Author
+Elliot Kerr - 05/08/2026
 
 """
-
 from sqlalchemy import String, Integer, DateTime, Date, text, Boolean, JSON, Float
 import pandas as pd
+import logging
 
 class Silver():
 
@@ -213,9 +210,23 @@ class Silver():
         }
     }
 
-    def clean_bronze_tables(self, slv_dict, logger, table_name):
+    def clean_bronze_tables(
+            self, 
+            slv_dict:dict, 
+            table_name:str, 
+            logger:logging
+        ) -> None:
         """
-        Doc String
+        Function creates the silver table for the specified table name by only selecting records with data_valid_to_utc NULL.
+        Each time this is ran, the table is dropped and replaced to prevent possible overwriting issues.
+
+        Args:
+        slv_dict - Dictionary that includes the schema name, engine and connection for the silver database.
+        table_name - Name of the table to create in the silver database
+        logger - Formatted Logging Instance "SILVER"
+
+        Returns:
+        No Output
         """
         query = f"""
             SELECT 
@@ -235,6 +246,7 @@ class Silver():
         slv_dict['conn'].commit()
 
         logger.info(f"Created silver.{table_name} using the cleaned version of bronze.{table_name}")
+
 
     def create_combined_table(self, slv_dict, logger):
         """

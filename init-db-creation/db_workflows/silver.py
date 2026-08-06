@@ -2,16 +2,21 @@
 Silver Tables Creation ETL
 
 Overview
-
-
+ETL orchestrates the silver layer workflows, removing any historical records and creating the combined view
 
 Workflow Description
+1. Sets up the engine and connections to the silver database file.
+2. Runs the clean_bronze_tables function from the Silver class to create silver.competitions, .matches and .events
+3. Runs the create_combined_table function from the Silver class to create silver.combined
 
 
 Requirements/Prerequistes
+- utils.general, .silver
+- Install requirements.txt
 
 
 Author
+Elliot Kerr - 05/08/2026
 
 """
 # Only needed in windows:
@@ -29,14 +34,9 @@ from statsbombpy.api_client import NoAuthWarning
 # Suppress the NoAuthWarning specifically
 warnings.filterwarnings("ignore", category=NoAuthWarning)
 
-from statsbombpy import sb
-import sqlite3
-from sqlalchemy import create_engine, text
-import time
-from datetime import datetime, timedelta, timezone
-import pandas as pd
-
-from utils.general import create_db_engine_func, DB_ENGINE_STRING, col_cleaning
+from sqlalchemy import text
+import logging
+from utils.general import create_db_engine_func, DB_ENGINE_STRING
 
 from utils.competitions import Competitions
 from utils.matches import Matches
@@ -49,23 +49,24 @@ match_pyclass = Matches()
 event_pyclass = Events()
 silver_pyclass = Silver()
 
-def extract_field_names(table_class):
-    """
-    Doc String
-    """
-    return list(table_class.column_mapping.keys())
-
-
 
 def silver_main(
         slv_schema : str, 
         brz_schema : str,
-        logger
+        logger: logging
     ):
     """
-    Doc String
+    Function is the orchestrator of the silver layer, following the Workflow Description in the file doc string.
+
+    Args:
+    slv_schema - Schema name for the silver database, incase any other names are used (i.e. "intermediate")
+    brz_schema - Schema name for the bronze database
+    logger - Formatted Logging Instance "SILVER"
+
+    Returns:
+    No output
     """
-    slv_engine = create_db_engine_func(slv_schema, DB_ENGINE_STRING, create_engine)
+    slv_engine = create_db_engine_func(slv_schema, DB_ENGINE_STRING)
     slv_dict = {'schema': slv_schema, 'engine': slv_engine, 'conn': slv_engine.connect()}
 
     slv_dict['conn'].execute(text(f"ATTACH DATABASE './dbs/{brz_schema}.db' AS bronze"))
@@ -73,9 +74,9 @@ def silver_main(
 
     logger.info(f"Cleaning the Bronze tables into Silver.")
 
-    silver_pyclass.clean_bronze_tables(slv_dict, logger, 'competitions')
-    silver_pyclass.clean_bronze_tables(slv_dict, logger, 'matches')
-    silver_pyclass.clean_bronze_tables(slv_dict, logger, 'events')
+    silver_pyclass.clean_bronze_tables(slv_dict, 'competitions', logger)
+    silver_pyclass.clean_bronze_tables(slv_dict, 'matches', logger)
+    silver_pyclass.clean_bronze_tables(slv_dict, 'events', logger)
 
 
     slv_dict['conn'].execute(text("DETACH DATABASE bronze"))
