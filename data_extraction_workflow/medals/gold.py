@@ -1,0 +1,63 @@
+"""
+Gold Tables Creation ETL
+
+Overview
+ETL orchestrates the silver layer workflows, removing any historical records and creating the combined view
+
+Workflow Description
+1. Sets up the engine and connections to the silver database file.
+2. Runs the clean_bronze_tables function from the Silver class to create silver.competitions, .matches and .events
+3. Runs the create_combined_table function from the Silver class to create silver.combined
+
+
+Requirements/Prerequistes
+- utils.general, .silver
+- Install requirements.txt
+
+
+Author
+Elliot Kerr - 05/08/2026
+
+"""
+# Only needed in windows:
+import sys
+from pathlib import Path
+
+# Automatically find project root (1 folder up from this file) and add to sys.path
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+import warnings
+from statsbombpy.api_client import NoAuthWarning
+
+# Suppress the NoAuthWarning specifically
+warnings.filterwarnings("ignore", category=NoAuthWarning)
+
+from sqlalchemy import text
+import logging
+from data_extraction_workflow.utils.general import create_db_engine_func, DB_ENGINE_STRING
+
+from data_extraction_workflow.utils.gold import Gold
+
+gold_pyclass = Gold()
+
+def gold_main(slv_schema: str, gld_schema: str, logger: logging):
+    """
+    Function is the orchestrator of the gold layer, following the Workflow Description in the file doc string.
+
+    Args:
+    slv_schema - Schema name for the silver database, incase any other names are used (i.e. "intermediate")
+    gld_schema - Schema name for the gold database, incase any other names are used (i.e. "prod")
+    logger - Formatted Logging Instance " GOLD "
+
+    Returns:
+    No output
+    """
+    gld_engine = create_db_engine_func(gld_schema, DB_ENGINE_STRING)
+    gld_dict = {'schema': gld_schema, 'engine': gld_engine, 'conn': gld_engine.connect()}
+
+    gld_dict['conn'].execute(text(f"ATTACH DATABASE './dbs/{slv_schema}.db' AS silver"))
+    gld_dict['conn'].commit()
+
+    gold_pyclass.create_gold(gld_dict, gold_pyclass.COMBINED_PASSES, 'combined_passes', logger)

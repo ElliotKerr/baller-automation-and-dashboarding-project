@@ -18,7 +18,7 @@ import pandas as pd
 from datetime import datetime
 import logging
 
-from utils.general import col_cleaning
+from data_extraction_workflow.utils.general import col_cleaning
 
 class Competitions():
 

@@ -31,8 +31,8 @@ from sqlalchemy import create_engine
 import pandas as pd
 import logging
 import os
-from db_workflows.bronze import bronze_main
-from db_workflows.silver import silver_main
+from medals.bronze import bronze_main
+from medals.silver import silver_main
 
 STAGING_SCHEMA = 'staging'
 BRONZE_SCHEMA = 'bronze'
