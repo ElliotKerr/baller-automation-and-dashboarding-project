@@ -76,7 +76,7 @@ def bronze_main(
     Returns:
     No output
     """
-    brz_engine = create_db_engine_func(brz_schema, DB_ENGINE_STRING, create_engine)
+    brz_engine = create_db_engine_func(brz_schema, DB_ENGINE_STRING)
     brz_dict = {'schema': brz_schema, 'engine': brz_engine, 'conn': brz_engine.connect()}
 
     valid_from = datetime.now(timezone.utc).replace(tzinfo=None)
