@@ -19,9 +19,10 @@ from datetime import datetime
 import logging
 from typing import List
 from statsbombpy import sb
+import numpy as np
 
-from data_extraction_workflow.utils.general import col_cleaning
-from data_extraction_workflow.utils.events import Events
+from utils.general import col_cleaning
+from utils.events import Events
 
 class Matches():
 

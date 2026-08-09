@@ -18,7 +18,7 @@ import pandas as pd
 from datetime import datetime
 import logging
 
-from data_extraction_workflow.utils.general import col_cleaning
+from utils.general import col_cleaning
 
 class Competitions():
 
@@ -84,6 +84,7 @@ class Competitions():
             brz_dict: dict, 
             base_competitions: pd.DataFrame,
             data_valid_to: datetime,
+            last_edited_where_clause: str,
             logger: logging
         ) -> pd.DataFrame:
         """
@@ -97,6 +98,7 @@ class Competitions():
         brz_dict - Dictionary that includes the schema name, engine and connection for the bronze database.
         base_competitions - Dataframe from sb.competitions().
         data_valid_to - Datetime value initialised in the bronze_main function
+        last_edited_where_clause - Used when selecting specific competitions and seasons, adds to the last_updated query to show just the specified competition and season
         logger - Formatted Logging Instance "BRONZE"
 
         Returns:
@@ -112,6 +114,7 @@ class Competitions():
                     COALESCE(MAX(match_updated),NULL) AS last_updated
                 FROM    
                     competitions
+                {last_edited_where_clause}
             ''', brz_dict['conn'])['last_updated'][0]
 
             last_updated = pd.to_datetime(last_updated_raw) if pd.notnull(last_updated_raw) else None

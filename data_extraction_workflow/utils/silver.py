@@ -14,6 +14,8 @@ Elliot Kerr - 05/08/2026
 
 """
 from sqlalchemy import String, Integer, DateTime, Date, text, Boolean, JSON, Float
+import numpy as np
+from statsbombpy import sb
 import pandas as pd
 import logging
 
@@ -39,6 +41,7 @@ class Silver():
             'away_score': Integer,
             'match_status': String, 
             'match_week': Integer, 
+            'match_name': String,
             'home_team_id': Integer, 
             'home_team': String, 
             'home_team_gender': String, 
@@ -51,8 +54,11 @@ class Silver():
             'away_team_group': String,
             'away_team_country_id': Integer, 
             'away_team_country_name': String,
+            'winning_team': String,
+            'winning_team_id': Integer,
             'competition_stage_id': Integer, 
             'competition_stage': String, 
+            'competition_stage_ranking': Integer,
             'stadium_id': Integer, 
             'stadium': String,
             'stadium_country_id': Integer, 
@@ -74,7 +80,10 @@ class Silver():
             'away_manager_nickname': String, 
             'away_manager_dob': Date, 
             'away_manager_country_id': String,
-            'away_manager_country_name': String
+            'away_manager_country_name': String,
+            'penalty_shootout': Integer,
+            'home_pen_score': Integer,
+            'away_pen_score': Integer
         },
 
         "events" : {
@@ -210,11 +219,75 @@ class Silver():
         }
     }
 
+    def update_penalty_shootout_result(self, slv_dict: dict):
+        """
+        Function updates any records in the matches table that have gone to a penalty shootout, as matches doesn't show the penalty shootout winner.
+
+        Args:
+        df - The matches dataframe.
+
+        Returns:
+        df - The updated version of the matches df with penalty shootouts decided.
+        """
+
+        draws = pd.read_sql_query('SELECT match_id, home_team, away_team FROM matches WHERE competition_stage_ranking > 1 AND winning_team = "Draw"', slv_dict['conn'])
+
+        match_ids = draws['match_id'].to_list()
+
+        for m_id in match_ids:
+            events = sb.events(match_id=m_id)
+
+            # Filter for Period 5 (Penalty Shootouts) and successful goals
+            shootout_goals = events[
+                (events["period"] == 5)
+                & (events["type"] == "Shot")
+                & (events["shot_outcome"] == "Goal")
+            ]
+
+            # If period 5 exists and has goals, we have a shootout winner!
+            if not shootout_goals.empty:
+                # Get home and away team names for this match
+                match_row = draws[draws["match_id"] == m_id].iloc[0]
+                home_team = match_row["home_team"]
+                away_team = match_row["away_team"]
+
+                # Count shootout goals per team
+                goal_counts = shootout_goals["team"].value_counts()
+                home_pen_score = goal_counts.get(home_team, 0)
+                away_pen_score = goal_counts.get(away_team, 0)
+
+                # Determine winner
+                if home_pen_score > away_pen_score:
+                    winner_name = home_team
+                else:
+                    winner_name = away_team
+
+                # Extract winning team_id
+                winner_id = shootout_goals[shootout_goals["team"] == winner_name][
+                    "team_id"
+                ].iloc[0]
+
+                update_query = f"""
+                    UPDATE matches
+                    SET penalty_shootout = 1,
+                        winning_team = '{winner_name}',
+                        winning_team_id = {winner_id},
+                        home_pen_score = {home_pen_score},
+                        away_pen_score = {away_pen_score}
+                    WHERE 
+                        match_id = {m_id}
+                """
+
+                slv_dict['conn'].execute(text(update_query))
+                slv_dict['conn'].commit()
+
+
     def clean_bronze_tables(
             self, 
             slv_dict:dict, 
             table_name:str, 
-            logger:logging
+            logger:logging,
+            added_fields:str = ""
         ) -> None:
         """
         Function creates the silver table for the specified table name by only selecting records with data_valid_to_utc NULL.
@@ -224,6 +297,7 @@ class Silver():
         slv_dict - Dictionary that includes the schema name, engine and connection for the silver database.
         table_name - Name of the table to create in the silver database
         logger - Formatted Logging Instance "SILVER"
+        added_fields | "" - When a table needs fields to be created, this can be done through the added fields parameter.
 
         Returns:
         No Output
@@ -231,8 +305,9 @@ class Silver():
         query = f"""
             SELECT 
                 *
+                {added_fields}
             FROM 
-                bronze.{table_name} 
+                bronze.{table_name}
             WHERE 
                 data_valid_to_utc IS NULL    
         """

@@ -19,15 +19,6 @@ Author
 Elliot Kerr - 05/08/2026
 
 """
-# Only needed in windows:
-import sys
-from pathlib import Path
-
-# Automatically find project root (1 folder up from this file) and add to sys.path
-PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
-
 import warnings
 from statsbombpy.api_client import NoAuthWarning
 
@@ -36,9 +27,9 @@ warnings.filterwarnings("ignore", category=NoAuthWarning)
 
 from sqlalchemy import text
 import logging
-from data_extraction_workflow.utils.general import create_db_engine_func, DB_ENGINE_STRING
+from utils.general import create_db_engine_func, DB_ENGINE_STRING
 
-from data_extraction_workflow.utils.gold import Gold
+from utils.gold import Gold
 
 gold_pyclass = Gold()
 
@@ -60,4 +51,13 @@ def gold_main(slv_schema: str, gld_schema: str, logger: logging):
     gld_dict['conn'].execute(text(f"ATTACH DATABASE './dbs/{slv_schema}.db' AS silver"))
     gld_dict['conn'].commit()
 
+    gold_pyclass.create_gold(gld_dict, gold_pyclass.COMBINED_RESULTS, 'combined_results', logger)
+
+    gold_pyclass.create_gold(gld_dict, gold_pyclass.COMBINED_MATCHES, 'combined_matches', logger)
+
     gold_pyclass.create_gold(gld_dict, gold_pyclass.COMBINED_PASSES, 'combined_passes', logger)
+
+    gld_dict['conn'].execute(text("DETACH DATABASE silver"))
+    gld_dict['conn'].commit()
+    gld_dict['conn'].close()
+    gld_dict['engine'].dispose()

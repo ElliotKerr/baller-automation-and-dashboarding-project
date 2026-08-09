@@ -20,7 +20,7 @@ import logging
 from typing import List
 from statsbombpy import sb
 
-from data_extraction_workflow.utils.general import col_cleaning
+from utils.general import col_cleaning
 
 class Events():
 
@@ -221,7 +221,11 @@ class Events():
             events['data_valid_from_utc'] = valid_from
             events['data_valid_to_utc'] = None
 
-            base_events = col_cleaning(events, self.column_mapping)    
+            base_events = col_cleaning(events, self.column_mapping)  
+
+            base_events['player'] = base_events['player'].apply(lambda x: x.replace("N''", "N'") if isinstance(x, str) else x)
+
+            base_events['pass_recipient'] = base_events['pass_recipient'].apply(lambda x: x.replace("N''", "N'") if isinstance(x, str) else x)
 
             events_df = base_events.reindex(columns=self.column_mapping.keys())
 

@@ -4,7 +4,7 @@ Orchestrate Initial Database Creation Workflows
 
 Overview
 Main ETL workflow to orchestrate the medallion structured pipeline for extracting competition, match and event information from the Statsbombpy package.
-Currently using 1 competition (FIFA World Cup 2022), creating a Data Warehouse to store the data in SQLite.
+Currently using 2 competitions (FIFA World Cup 2018 & 2022), creating a Data Warehouse to store the data in SQLite.
 
 
 Workflow Description
@@ -21,16 +21,6 @@ Author
 Elliot Kerr - 03/08/2026
 
 """
-# Only needed in windows:
-import sys
-from pathlib import Path
-
-# Automatically find project root (1 folder up from this file) and add to sys.path
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
-
-
 import sqlite3
 import logging
 import os
@@ -90,7 +80,7 @@ def get_logger(logging_type: str) -> logging:
     return logger
 
 
-comp_seasons = [[43,106]]
+comp_seasons = [[43,106], [43,3]]
 
 
 if __name__ == '__main__':
