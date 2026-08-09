@@ -51,4 +51,13 @@ def gold_main(slv_schema: str, gld_schema: str, logger: logging):
     gld_dict['conn'].execute(text(f"ATTACH DATABASE './dbs/{slv_schema}.db' AS silver"))
     gld_dict['conn'].commit()
 
+    gold_pyclass.create_gold(gld_dict, gold_pyclass.COMBINED_RESULTS, 'combined_results', logger)
+
+    gold_pyclass.create_gold(gld_dict, gold_pyclass.COMBINED_MATCHES, 'combined_matches', logger)
+
     gold_pyclass.create_gold(gld_dict, gold_pyclass.COMBINED_PASSES, 'combined_passes', logger)
+
+    gld_dict['conn'].execute(text("DETACH DATABASE silver"))
+    gld_dict['conn'].commit()
+    gld_dict['conn'].close()
+    gld_dict['engine'].dispose()

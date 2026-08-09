@@ -75,11 +75,15 @@ def bronze_main(
 
     competitions = sb.competitions()
 
+    last_edited_where_clause = ""
+
     if not (competition_id is None or season_id is None):
         competitions = competitions[
             (competitions['competition_id'] == competition_id) & 
             (competitions['season_id'] == season_id)
         ].copy()
+
+        last_edited_where_clause = f'WHERE competition_id = {competition_id} AND season_id = {season_id}'
 
 
     competitions['data_valid_from_utc'] = valid_from
@@ -90,6 +94,7 @@ def bronze_main(
         brz_dict,
         competitions,
         valid_to,
+        last_edited_where_clause,
         logger
     )
 

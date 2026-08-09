@@ -21,106 +21,103 @@ class Gold():
     COMBINED_PASSES = f"""
         WITH passes AS (
             SELECT 
-                *
-                ,CASE
-                    WHEN home_score = away_score THEN 'Draw'
-                    WHEN home_score > away_score THEN home_team
-                    ELSE away_team
-                END AS winning_team
-                ,CASE
-                    WHEN home_score = away_score THEN 'Draw'
-                    WHEN home_score > away_score THEN home_team_id
-                    ELSE away_team_id
-                END AS winning_team_id
-                ,CASE WHEN period = 1 THEN '1st Half' ELSE '2nd Half' END AS which_half
-                ,CASE WHEN pass_outcome IS NULL THEN 'Success' ELSE pass_outcome END AS pass_outcome_complete
+                comb.*
+                ,CASE WHEN comb.period = 1 THEN '1st Half' ELSE '2nd Half' END AS which_half
+                ,CASE WHEN comb.pass_outcome IS NULL THEN 'Success' ELSE comb.pass_outcome END AS pass_outcome_complete
                 ,CASE 
-                    WHEN COS(pass_angle) > 0 THEN 'Forward'
-                    WHEN COS(pass_angle) < 0 THEN 'Backward'
+                    WHEN COS(comb.pass_angle) > 0 THEN 'Forward'
+                    WHEN COS(comb.pass_angle) < 0 THEN 'Backward'
                     ELSE 'Lateral'
                 END AS pass_direction
                 ,CASE 
-                    WHEN location LIKE '[%,%]' THEN 
+                    WHEN comb.location LIKE '[%,%]' THEN 
                         CAST(
                             SUBSTR(
-                                location, 
+                                comb.location, 
                                 2, 
-                                INSTR(location, ',') - 2
+                                INSTR(comb.location, ',') - 2
                             ) AS REAL
                         )
                     ELSE NULL
                 END AS pass_start_x
                 ,CASE                 
-                    WHEN location LIKE '[%,%]' THEN 
+                    WHEN comb.location LIKE '[%,%]' THEN 
                         CAST(
                             SUBSTR(
-                                location, 
-                                INSTR(location, ',') + 2, 
-                                LENGTH(location) - INSTR(location, ',') - 2
+                                comb.location, 
+                                INSTR(comb.location, ',') + 2, 
+                                LENGTH(comb.location) - INSTR(comb.location, ',') - 2
                             ) AS REAL
                         )
                     ELSE NULL
                 END AS pass_start_y
                 ,CASE 
-                    WHEN pass_end_location IS NULL OR pass_end_location = '' THEN NULL
+                    WHEN comb.pass_end_location IS NULL OR comb.pass_end_location = '' THEN NULL
                     
-                    WHEN pass_end_location LIKE '[%,%]' THEN 
+                    WHEN comb.pass_end_location LIKE '[%,%]' THEN 
                         CAST(
                             SUBSTR(
-                                pass_end_location, 
+                                comb.pass_end_location, 
                                 2, 
-                                INSTR(pass_end_location, ',') - 2
+                                INSTR(comb.pass_end_location, ',') - 2
                             ) AS REAL
                         )
                     ELSE NULL
                 END AS pass_end_x
                 ,CASE 
-                    WHEN pass_end_location IS NULL OR pass_end_location = '' THEN NULL
-                    WHEN pass_end_location LIKE '[%,%]' THEN 
+                    WHEN comb.pass_end_location IS NULL OR comb.pass_end_location = '' THEN NULL
+                    WHEN comb.pass_end_location LIKE '[%,%]' THEN 
                         CAST(
                             SUBSTR(
-                                pass_end_location, 
-                                INSTR(pass_end_location, ',') + 2, 
-                                LENGTH(pass_end_location) - INSTR(pass_end_location, ',') - 2
+                                comb.pass_end_location, 
+                                INSTR(comb.pass_end_location, ',') + 2, 
+                                LENGTH(comb.pass_end_location) - INSTR(comb.pass_end_location, ',') - 2
                             ) AS REAL
                         )
                     ELSE NULL
                 END AS pass_end_y
+                ,cr.matches_played
+                ,cr.wins
+                ,cr.draw
+                ,cr.losses
+                ,cr.stage_reached
             FROM 
-                silver.combined
+                silver.combined comb
+
+            LEFT JOIN main.combined_results cr
+            ON comb.competition_id = cr.competition_id
+            AND comb.season_id = cr.season_id
+            AND comb.team_id = cr.team_id
+
             WHERE 
                 LOWER(type) = 'pass'
         )
 
         SELECT 
-            competition_id
+            CONCAT(competition_id, '-', season_id, '-', team_id) AS cst_composite_id
+            ,CONCAT(competition_id, '-', season_id, '-', match_id) AS csm_composite_id
+            ,competition_id
             ,season_id
             ,country_name
             ,competition_name
             ,season_name
+            ,CONCAT(competition_name, ' ', season_name) AS competition
             ,match_id
             ,match_date
-            ,CONCAT(home_team, ' vs ', away_team) AS match_name
+            ,match_name
             ,kick_off
             ,home_score
             ,away_score
+            ,penalty_shootout
+            ,home_pen_score
+            ,away_pen_score
             ,match_week
             ,home_team
             ,away_team
             ,winning_team_id
             ,winning_team
             ,competition_stage
-            ,CAST(CASE 
-                WHEN LOWER(competition_stage) LIKE 'group%stage' THEN 1
-                WHEN LOWER(competition_stage) LIKE 'round%of%128' THEN 2
-                WHEN LOWER(competition_stage) LIKE 'round%of%64' THEN 3
-                WHEN LOWER(competition_stage) LIKE 'round%of%32' THEN 4
-                WHEN LOWER(competition_stage) LIKE 'round%of%16' THEN 5
-                WHEN LOWER(competition_stage) LIKE 'quarter%final%' THEN 6
-                WHEN LOWER(competition_stage) LIKE 'semi%final%' THEN 7
-                WHEN LOWER(competition_stage) LIKE 'final%' THEN 8
-                ELSE 9
-            END AS INT) AS competition_stage_ranking
+            ,competition_stage_ranking
             ,id
             ,period
             ,which_half
@@ -133,6 +130,11 @@ class Gold():
             ,play_pattern
             ,team
             ,team_id
+            ,matches_played
+            ,wins
+            ,draw
+            ,losses
+            ,stage_reached
             ,CAST(CASE 
                 WHEN team_id = winning_team_id THEN 1
                 ELSE 0
@@ -185,6 +187,249 @@ class Gold():
         FROM 
             passes
     """
+
+    COMBINED_MATCHES = f"""
+        SELECT 
+            CONCAT(competition_id, '-', season_id, '-', match_id) AS csm_composite_id
+            ,competition_id
+            ,season_id
+            ,country_name
+            ,competition_name
+            ,season_name
+            ,CONCAT(competition_name, ' ', season_name) AS competition
+            ,match_id
+            ,match_date
+            ,match_name
+            ,kick_off
+            ,home_score
+            ,away_score
+            ,match_week
+            ,home_team
+            ,home_team_id
+            ,away_team
+            ,away_team_id
+            ,winning_team
+            ,winning_team_id
+            ,competition_stage
+            ,competition_stage_ranking
+            ,penalty_shootout
+            ,home_pen_score
+            ,away_pen_score
+        FROM 
+            silver.combined
+        GROUP BY 
+            competition_id
+            ,season_id
+            ,country_name
+            ,competition_name
+            ,season_name
+            ,match_id
+            ,match_date
+            ,match_name
+            ,kick_off
+            ,home_score
+            ,away_score
+            ,match_week
+            ,home_team
+            ,away_team
+            ,winning_team
+            ,winning_team_id
+            ,competition_stage
+            ,competition_stage_ranking
+            ,penalty_shootout
+            ,home_pen_score
+            ,away_pen_score
+    """
+
+    COMBINED_RESULTS = f"""
+        WITH matches_cte AS (
+            SELECT 
+                competition_id
+                ,season_id
+                ,country_name
+                ,competition_name
+                ,season_name
+                ,home_team_id AS team_id
+                ,home_team AS team_name
+                ,COUNT(DISTINCT match_id) AS matches_played
+                ,COUNT(DISTINCT CASE 
+                    WHEN home_team_id = winning_team_id AND penalty_shootout != 1 THEN match_id
+                END) AS win_non_pens
+                ,COUNT(DISTINCT CASE 
+                    WHEN home_team_id = winning_team_id AND penalty_shootout = 1 THEN match_id
+                END) AS win_in_pens
+                ,COUNT(DISTINCT CASE 
+                    WHEN winning_team_id = -1 THEN match_id
+                END) AS draw
+                ,COUNT(DISTINCT CASE 
+                    WHEN home_team_id != winning_team_id AND winning_team_id != -1 AND penalty_shootout != 1 THEN match_id
+                END) AS lost_non_pens
+                ,COUNT(DISTINCT CASE 
+                    WHEN home_team_id != winning_team_id AND winning_team_id != -1 AND penalty_shootout = 1 THEN match_id
+                END) AS lost_in_pens
+                ,MAX(competition_stage_ranking) AS max_competition_stage_ranking
+            FROM 
+                combined
+            GROUP BY 
+                competition_id
+                ,season_id
+                ,country_name
+                ,competition_name
+                ,season_name
+                ,home_team_id
+                ,home_team
+
+            UNION ALL
+
+            SELECT 
+                competition_id
+                ,season_id
+                ,country_name
+                ,competition_name
+                ,season_name
+                ,away_team_id AS team_id
+                ,away_team AS team_name
+                ,COUNT(DISTINCT match_id) AS matches_played
+                ,COUNT(DISTINCT CASE 
+                    WHEN away_team_id = winning_team_id AND winning_team_id != -1 AND penalty_shootout != 1 THEN match_id
+                END) AS win_non_pens
+                ,COUNT(DISTINCT CASE 
+                    WHEN away_team_id = winning_team_id AND winning_team_id != -1 AND penalty_shootout = 1 THEN match_id
+                END) AS win_in_pens
+                ,COUNT(DISTINCT CASE 
+                    WHEN winning_team_id = -1 THEN match_id
+                END) AS draw
+                ,COUNT(DISTINCT CASE 
+                    WHEN away_team_id != winning_team_id AND winning_team_id != -1 AND penalty_shootout != 1 THEN match_id
+                END) AS lost_non_pens
+                ,COUNT(DISTINCT CASE 
+                    WHEN away_team_id != winning_team_id AND winning_team_id != -1 AND penalty_shootout = 1 THEN match_id
+                END) AS lost_in_pens
+                ,MAX(competition_stage_ranking) AS max_competition_stage_ranking
+            FROM 
+                combined
+            GROUP BY 
+                competition_id
+                ,season_id
+                ,country_name
+                ,competition_name
+                ,season_name
+                ,away_team_id
+                ,away_team
+        )
+
+        ,competition_stage_cte AS (
+            SELECT 
+                competition_stage
+                ,competition_stage_ranking
+            FROM 
+                combined
+            GROUP BY 
+                competition_stage
+                ,competition_stage_ranking
+        )
+        ,who_won_finals AS (
+            SELECT 
+                competition_id
+                ,season_id
+                ,country_name
+                ,competition_name
+                ,season_name
+                ,competition_stage_ranking
+                ,CASE WHEN competition_stage_ranking = 9 THEN winning_team END AS third_place_winner
+                ,CASE WHEN competition_stage_ranking = 10 THEN winning_team END AS first_place_winner
+            FROM 
+                combined
+            WHERE 
+                competition_stage_ranking IN (9,10)
+            GROUP BY 
+                competition_id
+                ,season_id
+                ,country_name
+                ,competition_name
+                ,season_name
+                ,competition_stage_ranking
+                ,winning_team
+                
+        )
+        ,final_cte AS (
+            SELECT 
+                CONCAT(competition_id, '-', season_id, '-', team_id) AS cst_composite_id
+                ,competition_id
+                ,season_id
+                ,country_name
+                ,competition_name
+                ,season_name
+                ,CONCAT(competition_name, ' ', season_name) AS competition
+                ,team_id
+                ,team_name
+                ,SUM(matches_played) AS matches_played
+                ,SUM(win_non_pens) AS win_non_pens
+                ,SUM(win_in_pens) AS win_in_pens
+                ,SUM(draw) AS draw
+                ,SUM(lost_non_pens) AS lost_non_pens
+                ,SUM(lost_in_pens) AS lost_in_pens 
+                ,MAX(max_competition_stage_ranking) AS max_competition_stage_ranking
+            FROM 
+                matches_cte
+            GROUP BY 
+                competition_id
+                ,season_id
+                ,country_name
+                ,competition_name
+                ,season_name
+                ,team_id
+                ,team_name
+        )
+        SELECT 
+            f.cst_composite_id
+            ,f.competition_id
+            ,f.season_id
+            ,f.country_name
+            ,f.competition_name
+            ,f.season_name
+            ,f.competition
+            ,f.team_id
+            ,f.team_name
+            ,f.matches_played
+            ,f.win_non_pens
+            ,f.win_in_pens
+            ,f.draw
+            ,f.lost_non_pens
+            ,f.lost_in_pens 
+
+            ,CASE 
+                WHEN f.max_competition_stage_ranking = 10 AND wwf.first_place_winner = f.team_name THEN '1st Place'
+                WHEN f.max_competition_stage_ranking = 10 AND wwf.first_place_winner != f.team_name THEN '2nd Place'
+                WHEN f.max_competition_stage_ranking = 9  AND wwf.third_place_winner = f.team_name THEN '3rd Place'
+                WHEN f.max_competition_stage_ranking = 9  AND wwf.third_place_winner != f.team_name THEN '4th Place'
+                ELSE cs.competition_stage
+            END AS stage_reached
+            ,CASE 
+                WHEN f.max_competition_stage_ranking = 10 AND wwf.first_place_winner = f.team_name THEN 14
+                WHEN f.max_competition_stage_ranking = 10 AND wwf.first_place_winner != f.team_name THEN 13
+                WHEN f.max_competition_stage_ranking = 9  AND wwf.third_place_winner = f.team_name THEN 12
+                WHEN f.max_competition_stage_ranking = 9  AND wwf.third_place_winner != f.team_name THEN 10
+                ELSE f.max_competition_stage_ranking
+            END AS max_competition_stage_ranking
+
+            ,COALESCE(f.win_non_pens, 0) + COALESCE(f.win_in_pens, 0) AS wins
+            ,COALESCE(f.lost_non_pens, 0) + COALESCE(f.lost_in_pens, 0) AS losses
+        FROM 
+            final_cte f
+        LEFT JOIN 
+            competition_stage_cte cs
+        ON 
+            f.max_competition_stage_ranking = cs.competition_stage_ranking
+        LEFT JOIN 
+            who_won_finals wwf
+        ON 
+            f.competition_id = wwf.competition_id 
+        AND 
+            f.season_id = wwf.season_id 
+        AND 
+            f.max_competition_stage_ranking = wwf.competition_stage_ranking
+"""
 
     def create_gold(
             self, 

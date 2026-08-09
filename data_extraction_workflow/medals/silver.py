@@ -66,7 +66,64 @@ def silver_main(
     logger.info(f"Cleaning the Bronze tables into Silver.")
 
     silver_pyclass.clean_bronze_tables(slv_dict, 'competitions', logger)
-    silver_pyclass.clean_bronze_tables(slv_dict, 'matches', logger)
+
+    matches_additional_query = f"""
+        ,CONCAT(home_team, ' vs ', away_team) AS match_name
+        ,CASE
+            WHEN home_score = away_score THEN 'Draw'
+            WHEN home_score > away_score THEN home_team
+            ELSE away_team
+        END AS winning_team
+        ,CASE
+            WHEN home_score = away_score THEN -1
+            WHEN home_score > away_score THEN home_team_id
+            ELSE away_team_id
+        END AS winning_team_id
+        ,CAST(CASE 
+            WHEN LOWER(competition_stage) LIKE '%regular%season%' 
+            OR LOWER(competition_stage) LIKE '%league%' THEN 0
+
+            WHEN LOWER(competition_stage) LIKE '%group%' THEN 1
+
+            WHEN LOWER(competition_stage) LIKE '%play-in%' 
+            OR LOWER(competition_stage) LIKE '%qualif%' THEN 2
+
+            WHEN LOWER(competition_stage) LIKE '%128%' 
+            OR LOWER(competition_stage) LIKE '%1st%round%' 
+            OR LOWER(competition_stage) LIKE '%2nd%round%' THEN 3
+
+            WHEN LOWER(competition_stage) LIKE '%64%' 
+            OR LOWER(competition_stage) LIKE '%32nd%final%' 
+            OR LOWER(competition_stage) LIKE '%3rd%round%' 
+            OR LOWER(competition_stage) LIKE '%4th%round%' THEN 4
+
+            WHEN LOWER(competition_stage) LIKE '%32%' 
+            OR LOWER(competition_stage) LIKE '%16th%final%' THEN 5
+
+            WHEN LOWER(competition_stage) LIKE '%16%' 
+            OR LOWER(competition_stage) LIKE '%8th%final%' THEN 6
+
+            WHEN LOWER(competition_stage) LIKE '%quarter%' 
+            OR LOWER(competition_stage) LIKE '%qtr%' THEN 7
+
+            WHEN LOWER(competition_stage) LIKE '%semi%' THEN 8
+
+            WHEN LOWER(competition_stage) LIKE '%3rd%' 
+            OR LOWER(competition_stage) LIKE '%third%' THEN 9
+
+            WHEN LOWER(competition_stage) LIKE '%final%' THEN 10
+
+            ELSE 99
+        END AS INT) AS competition_stage_ranking
+        ,0 AS penalty_shootout
+        ,0 AS home_pen_score
+        ,0 AS away_pen_score
+    """
+
+    silver_pyclass.clean_bronze_tables(slv_dict, 'matches', logger, matches_additional_query)
+    silver_pyclass.update_penalty_shootout_result(slv_dict)
+
+
     silver_pyclass.clean_bronze_tables(slv_dict, 'events', logger)
 
 

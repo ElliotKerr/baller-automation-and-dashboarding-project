@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+python.exe -m pip install --upgrade pip
+
 VENV_DIR="./data_extraction_workflow/.venv"
 VENV_ACTIVATE="$VENV_DIR/Scripts/activate"
 
