@@ -23,6 +23,7 @@ import numpy as np
 
 from utils.general import col_cleaning
 from utils.events import Events
+from utils.lineups import Lineups
 
 class Matches():
 
@@ -120,6 +121,7 @@ class Matches():
     def bronze_matches(
             self,
             event_pyclass: Events,
+            lineups_pyclass: Lineups,
             brz_dict: dict,
             competitions_df: pd.DataFrame,
             valid_from: datetime,
@@ -214,6 +216,15 @@ class Matches():
 
 
             if match_id_list != []:
+                lineups_pyclass.bronze_lineups(
+                    brz_dict,
+                    match_id_list,
+                    valid_from,
+                    valid_to,
+                    logger
+                )
+
+
                 event_pyclass.bronze_events(
                     brz_dict,
                     match_id_list,

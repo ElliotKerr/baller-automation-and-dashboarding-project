@@ -127,6 +127,9 @@ def silver_main(
     silver_pyclass.clean_bronze_tables(slv_dict, 'events', logger)
 
 
+    silver_pyclass.clean_bronze_tables(slv_dict, 'lineups', logger)
+
+
     slv_dict['conn'].execute(text("DETACH DATABASE bronze"))
     slv_dict['conn'].commit()
 

@@ -80,7 +80,10 @@ def get_logger(logging_type: str) -> logging:
     return logger
 
 
-comp_seasons = [[43,106], [43,3]]
+comp_seasons = [
+    [43,106], 
+    [43,3]
+]
 
 
 if __name__ == '__main__':
