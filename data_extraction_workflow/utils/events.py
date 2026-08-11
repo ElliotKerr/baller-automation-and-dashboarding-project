@@ -21,6 +21,10 @@ from typing import List
 from statsbombpy import sb
 
 from utils.general import col_cleaning
+from utils.lineups import Lineups
+
+lineups_pyclass = Lineups()
+
 
 class Events():
 
@@ -200,6 +204,7 @@ class Events():
         ) -> None:
         """
         Function:
+            - runs the lineups extraction
             - load the events data and clean
             - updates any records currently in the db for each match
             - appends the new records to the bronze.matches table.
@@ -215,6 +220,15 @@ class Events():
         No output
         """
         for match_id in match_id_list:
+
+            lineups_pyclass.bronze_lineups(
+                brz_dict,
+                match_id,
+                valid_from,
+                valid_to,
+                logger
+            )
+
             logger.info(f"Starting Events extraction for match {match_id}")
             events = sb.events(match_id=match_id)
 
@@ -251,4 +265,4 @@ class Events():
                 )
 
                 brz_dict['conn'].commit()
-    
+     

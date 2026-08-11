@@ -41,13 +41,11 @@ from utils.general import create_db_engine_func, DB_ENGINE_STRING
 from utils.competitions import Competitions
 from utils.matches import Matches
 from utils.events import Events
-from utils.lineups import Lineups
 
 # Class storing the fields and composite key used in the merge procedure.
 comp_pyclass = Competitions()
 match_pyclass = Matches()
 event_pyclass = Events()
-lineups_pyclass = Lineups()
 
 
 def bronze_main(
@@ -103,7 +101,6 @@ def bronze_main(
 
     match_pyclass.bronze_matches(
         event_pyclass,
-        lineups_pyclass,
         brz_dict,
         competitions_df,
         valid_from,
