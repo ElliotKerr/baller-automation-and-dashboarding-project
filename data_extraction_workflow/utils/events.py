@@ -197,6 +197,8 @@ class Events():
     def bronze_events(
             self,
             brz_dict: dict,
+            competition_id: int,
+            season_id: int,
             match_id_list: List[str],
             valid_from: datetime,
             valid_to: datetime,
@@ -223,6 +225,8 @@ class Events():
 
             lineups_pyclass.bronze_lineups(
                 brz_dict,
+                competition_id,
+                season_id,
                 match_id,
                 valid_from,
                 valid_to,

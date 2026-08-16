@@ -85,6 +85,8 @@ comp_seasons = [
     [43,3]
 ]
 
+comps = [43]
+
 
 if __name__ == '__main__':
     main_logger = get_logger(" MAIN ")
@@ -98,8 +100,11 @@ if __name__ == '__main__':
     if comp_seasons == []:
         bronze_main(SCHEMAS['BRONZE_SCHEMA'], get_logger("BRONZE"))
     else:
-        for competition_id, season_id in comp_seasons:
-            bronze_main(SCHEMAS['BRONZE_SCHEMA'], get_logger("BRONZE"), competition_id = competition_id, season_id = season_id)
+        # for competition_id, season_id in comp_seasons:
+        #     bronze_main(SCHEMAS['BRONZE_SCHEMA'], get_logger("BRONZE"), competition_id = competition_id, season_id = season_id)
+
+        for competition_id in comps:
+            bronze_main(SCHEMAS['BRONZE_SCHEMA'], get_logger("BRONZE"), competition_id = competition_id)
 
     silver_main(
         SCHEMAS['SILVER_SCHEMA'], SCHEMAS['BRONZE_SCHEMA'], get_logger("SILVER")

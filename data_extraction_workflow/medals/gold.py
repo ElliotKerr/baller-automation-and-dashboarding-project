@@ -51,6 +51,14 @@ def gold_main(slv_schema: str, gld_schema: str, logger: logging):
     gld_dict['conn'].execute(text(f"ATTACH DATABASE './dbs/{slv_schema}.db' AS silver"))
     gld_dict['conn'].commit()
 
+    gold_pyclass.create_gold(gld_dict, gold_pyclass.PLAYER_LOOKUP, 'player_lookup', logger)
+
+    gold_pyclass.create_gold(gld_dict, gold_pyclass.TEAM_LOOKUP, 'team_lookup', logger)
+
+    gold_pyclass.create_gold(gld_dict, gold_pyclass.MATCH_DURATION_LOOKUP, 'match_duration_lookup', logger)
+
+    gold_pyclass.create_gold(gld_dict, gold_pyclass.COMBINED_PLAYER_PLAYTIME, 'combined_player_playtime', logger)
+
     gold_pyclass.create_gold(gld_dict, gold_pyclass.COMBINED_RESULTS, 'combined_results', logger)
 
     gold_pyclass.create_gold(gld_dict, gold_pyclass.COMBINED_MATCHES, 'combined_matches', logger)

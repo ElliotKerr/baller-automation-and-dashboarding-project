@@ -58,6 +58,7 @@ class Silver():
             'winning_team_id': Integer,
             'competition_stage_id': Integer, 
             'competition_stage': String, 
+            'fixed_competition_stage': String,
             'competition_stage_ranking': Integer,
             'stadium_id': Integer, 
             'stadium': String,
@@ -219,7 +220,7 @@ class Silver():
         }
     }
 
-    def update_penalty_shootout_result(self, slv_dict: dict):
+    def update_penalty_shootout_result(self, slv_dict: dict, logger: logging):
         """
         Function updates any records in the matches table that have gone to a penalty shootout, as matches doesn't show the penalty shootout winner.
 

@@ -18,6 +18,215 @@ import logging
 
 class Gold():
 
+    PLAYER_LOOKUP = f"""
+        SELECT 
+            player_id, 
+            player_name, 
+            player_nickname 
+        FROM 
+            lineups 
+        GROUP BY 
+            player_id, 
+            player_name, 
+            player_nickname
+    """
+
+    TEAM_LOOKUP = f"""
+        SELECT 
+            competition_id, 
+            season_id, 
+            home_team_id AS team_id, 
+            home_team AS team 
+        FROM 
+            silver.matches
+
+        UNION
+
+        SELECT 
+            competition_id, 
+            season_id, 
+            away_team_id AS team_id, 
+            away_team AS team 
+        FROM 
+            silver.matches 
+    """
+
+    MATCH_DURATION_LOOKUP = f"""
+        WITH match_timings_cte AS (
+            SELECT 
+                match_id,
+                
+                -- First Half
+                '00:00' AS h1_start,
+                MAX(
+                    CASE 
+                        WHEN period = 1 AND type = 'Half End' THEN PRINTF('%02d:%02d', minute, second) 
+                    END
+                ) AS h1_end,
+                MAX(
+                    CASE 
+                        WHEN period = 1 AND type = 'Half End' THEN (minute * 60 + second) 
+                    END
+                ) AS h1_duration_seconds,
+
+                -- Second Half
+                '45:00' AS h2_start,
+                MAX(
+                    CASE 
+                        WHEN period = 2 AND type = 'Half End' THEN PRINTF('%02d:%02d', minute, second) 
+                    END
+                ) AS h2_end,
+                MAX(
+                    CASE 
+                        WHEN period = 2 AND type = 'Half End' THEN ((minute - 45) * 60 + second) 
+                    END
+                ) AS h2_duration_seconds,
+
+                -- Extra Time 1st Half
+                MAX(
+                    CASE 
+                        WHEN period = 3 AND type = 'Half End' THEN '90:00' 
+                    END
+                ) AS et1_start,
+                MAX(
+                    CASE 
+                        WHEN period = 3 AND type = 'Half End' THEN PRINTF('%02d:%02d', minute, second) 
+                    END
+                ) AS et1_end,
+                MAX(
+                    CASE 
+                        WHEN period = 3 AND type = 'Half End' THEN ((minute - 90) * 60 + second) 
+                    END
+                ) AS et1_duration_seconds,
+
+                -- Extra Time 2nd Half
+                MAX(
+                    CASE 
+                        WHEN period = 4 AND type = 'Half End' THEN '105:00' 
+                    END
+                ) AS et2_start,
+                MAX(
+                    CASE 
+                        WHEN period = 4 AND type = 'Half End' THEN PRINTF('%02d:%02d', minute, second) 
+                    END
+                ) AS et2_end,
+                MAX(
+                    CASE 
+                        WHEN period = 4 AND type = 'Half End' THEN ((minute - 105) * 60 + second) 
+                    END
+                ) AS et2_duration_seconds,
+
+                -- Total Match Duration
+                MAX(
+                    CASE 
+                        WHEN period = 1 AND type = 'Half End' THEN (minute * 60 + second) 
+                        ELSE 0 
+                    END
+                ) +
+                MAX(
+                    CASE 
+                        WHEN period = 2 AND type = 'Half End' THEN ((minute - 45) * 60 + second) 
+                        ELSE 0 
+                    END
+                ) +
+                MAX(
+                    CASE 
+                        WHEN period = 3 AND type = 'Half End' THEN ((minute - 90) * 60 + second) 
+                        ELSE 0 
+                    END
+                ) +
+                MAX(
+                    CASE 
+                        WHEN period = 4 AND type = 'Half End' THEN ((minute - 105) * 60 + second) 
+                        ELSE 0 
+                    END
+                ) AS total_match_duration_seconds
+
+            FROM 
+                events
+            WHERE 
+                type = 'Half End' 
+            AND 
+                period IN (1, 2, 3, 4)
+            GROUP BY 
+                match_id
+        )
+
+        SELECT 
+            *
+            ,CASE
+                WHEN et2_end IS NULL THEN h2_end 
+                ELSE et2_end
+            END AS game_end
+        FROM 
+            match_timings_cte 
+    """
+
+    COMBINED_PLAYER_PLAYTIME = f"""
+        WITH player_start_end AS (
+            SELECT 
+                line.competition_id
+                ,line.season_id
+                ,line.match_id
+                ,player_id
+                ,player_nickname  
+                ,team.team_id
+                ,team.team
+                ,starting_xi
+                ,CAST(
+                    CASE 
+                        WHEN starting_xi = 1 THEN 0 
+                        WHEN sub_on IS NOT NULL THEN SUBSTR(sub_on, 1, INSTR(sub_on, ':') - 1) 
+                        ELSE NULL
+                    END 
+                AS INT) AS start_minute
+                ,CAST(
+                    CASE 
+                        WHEN starting_xi = 1 THEN 0 
+                        WHEN sub_on IS NOT NULL THEN SUBSTR(sub_on, INSTR(sub_on, ':') + 1) 
+                        ELSE NULL
+                    END 
+                AS INT) AS start_second
+                ,CAST(
+                    CASE 
+                        WHEN ended_game = 1 THEN SUBSTR(mdl.game_end, 1, INSTR(mdl.game_end, ':') - 1) 
+                        WHEN sub_off IS NOT NULL THEN SUBSTR(sub_off, 1, INSTR(sub_off, ':') - 1) 
+                        WHEN removed_due_to_red_card IS NOT NULL THEN SUBSTR(removed_due_to_red_card, 1, INSTR(removed_due_to_red_card, ':') - 1) 
+                        ELSE NULL
+                    END 
+                AS INT) AS end_minute
+                ,CAST(
+                    CASE 
+                        WHEN ended_game = 1 THEN SUBSTR(mdl.game_end, INSTR(mdl.game_end, ':') + 1)
+                        WHEN sub_off IS NOT NULL THEN SUBSTR(sub_off, INSTR(sub_off, ':') + 1) 
+                        WHEN removed_due_to_red_card IS NOT NULL THEN SUBSTR(removed_due_to_red_card, INSTR(removed_due_to_red_card, ':') + 1) 
+                        ELSE NULL
+                    END 
+                AS INT) AS end_second
+            FROM 
+                silver.lineups line
+            LEFT JOIN 
+                match_duration_lookup mdl
+            ON 
+                line.match_id = mdl.match_id
+            LEFT JOIN 
+                team_lookup team
+            ON 
+                line.competition_id = team.competition_id
+            AND 
+                line.season_id = team.season_id
+            AND 
+                line.team = team.team
+        )
+
+        SELECT
+            CONCAT(competition_id, '-', season_id, '-', team_id) AS cst_composite_id    
+            ,*
+            ,(end_minute * 60 + end_second) - (start_minute * 60 + start_second) AS duration_played_in_seconds
+        FROM 
+            player_start_end
+    """
+
     COMBINED_PASSES = f"""
         WITH passes AS (
             SELECT 
@@ -140,7 +349,8 @@ class Gold():
                 ELSE 0
             END AS INT) AS part_of_winning_team
             ,player
-            ,player_id
+            ,p.player_id
+            ,pl.player_nickname
             ,position
             ,location
             ,duration
@@ -150,6 +360,7 @@ class Gold():
             ,CAST(CASE WHEN counterpress = 1 THEN 1 ELSE 0 END AS INT) AS counterpress
             ,pass_recipient
             ,pass_recipient_id
+            ,pl_pass_recipient.player_nickname AS pass_recipient_nickname
             ,pass_length
             ,pass_angle
             ,pass_direction
@@ -185,7 +396,15 @@ class Gold():
             ,CAST(CASE WHEN pass_deflected = 1 THEN 1 ELSE 0 END AS INT) AS pass_deflected
             ,CAST(CASE WHEN pass_through_ball = 1 THEN 1 ELSE 0 END AS INT) AS pass_through_ball
         FROM 
-            passes
+            passes p
+        LEFT JOIN 
+            player_lookup pl
+        ON
+            p.player_id = pl.player_id
+        LEFT JOIN 
+            player_lookup pl_pass_recipient
+        ON 
+            p.pass_recipient_id = pl_pass_recipient.player_id
     """
 
     COMBINED_MATCHES = f"""
@@ -210,7 +429,7 @@ class Gold():
             ,away_team_id
             ,winning_team
             ,winning_team_id
-            ,competition_stage
+            ,fixed_competition_stage AS competition_stage
             ,competition_stage_ranking
             ,penalty_shootout
             ,home_pen_score
@@ -234,7 +453,7 @@ class Gold():
             ,away_team
             ,winning_team
             ,winning_team_id
-            ,competition_stage
+            ,fixed_competition_stage
             ,competition_stage_ranking
             ,penalty_shootout
             ,home_pen_score
@@ -320,12 +539,12 @@ class Gold():
 
         ,competition_stage_cte AS (
             SELECT 
-                competition_stage
+                fixed_competition_stage AS competition_stage
                 ,competition_stage_ranking
             FROM 
                 combined
             GROUP BY 
-                competition_stage
+                fixed_competition_stage
                 ,competition_stage_ranking
         )
         ,who_won_finals AS (

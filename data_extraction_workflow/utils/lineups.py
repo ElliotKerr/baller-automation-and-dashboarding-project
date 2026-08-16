@@ -28,7 +28,10 @@ class Lineups():
     composite_keys = ['match_id', 'player_id']
 
     column_mapping = {
+        'competition_id': Integer,
+        'season_id': Integer,
         'match_id': Integer,
+        'team': String,
         'player_id': Integer,
         'player_name': String,
         'player_nickname': String,
@@ -170,6 +173,8 @@ class Lineups():
 
     def bronze_lineups(self,
             brz_dict: dict,
+            competition_id: int,
+            season_id: int,
             match_id: int,
             valid_from: datetime,
             valid_to: datetime,
@@ -194,16 +199,17 @@ class Lineups():
         """
         all_lineups = sb.lineups(match_id = match_id)
 
-        teams = list(all_lineups.keys())
-
         teams_lineups = []
 
-        for team in teams:
-            teams_lineups.append(all_lineups[team])
+        for team, team_df in all_lineups.items():
+            team_df.insert(0, 'team', team)
+            teams_lineups.append(team_df)
 
         lineups = pd.concat(teams_lineups)
 
-        lineups.insert(0, 'match_id', match_id)
+        lineups.insert(0, 'competition_id', competition_id)
+        lineups.insert(1, 'season_id', season_id)
+        lineups.insert(2, 'match_id', match_id)
 
         lineups['player_nickname'] = lineups['player_nickname'].fillna(lineups['player_name'])
 
