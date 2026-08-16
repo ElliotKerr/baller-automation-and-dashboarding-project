@@ -19,16 +19,24 @@ import logging
 class Gold():
 
     PLAYER_LOOKUP = f"""
+        WITH players_ranked AS (
+            SELECT 
+                player_id, 
+                player_nickname,
+                ROW_NUMBER() OVER (
+                    PARTITION BY player_id 
+                    ORDER BY LENGTH(COALESCE(player_nickname, '')), LENGTH(player_name)
+                ) AS rn
+            FROM 
+                lineups
+        )
         SELECT 
             player_id, 
-            player_name, 
             player_nickname 
         FROM 
-            lineups 
-        GROUP BY 
-            player_id, 
-            player_name, 
-            player_nickname
+            players_ranked 
+        WHERE 
+            rn = 1
     """
 
     TEAM_LOOKUP = f"""

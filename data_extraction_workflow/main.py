@@ -85,7 +85,7 @@ comp_seasons = [
     [43,3]
 ]
 
-comps = [43]
+comps = [43, 55, 53, 72]
 
 
 if __name__ == '__main__':

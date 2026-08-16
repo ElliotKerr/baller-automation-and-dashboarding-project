@@ -271,7 +271,7 @@ class Silver():
                 update_query = f"""
                     UPDATE matches
                     SET penalty_shootout = 1,
-                        winning_team = '{winner_name}',
+                        winning_team = '{winner_name.replace("'", "''")}',
                         winning_team_id = {winner_id},
                         home_pen_score = {home_pen_score},
                         away_pen_score = {away_pen_score}
