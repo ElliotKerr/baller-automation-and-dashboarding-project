@@ -6,8 +6,9 @@ ETL orchestrates the silver layer workflows, removing any historical records and
 
 Workflow Description
 1. Sets up the engine and connections to the silver database file.
-2. Runs the clean_bronze_tables function from the Silver class to create silver.competitions, .matches and .events
-3. Runs the create_combined_table function from the Silver class to create silver.combined
+2. Runs the clean_bronze_tables function from the Silver class to create silver.competitions, .matches, .events and .lineups
+3. Updates the silver.matches table with results from penalty shootouts in the tournaments 
+4. Runs the create_combined_table function from the Silver class to create silver.combined
 
 
 Requirements/Prerequistes

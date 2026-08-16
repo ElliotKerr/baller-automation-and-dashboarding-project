@@ -4,7 +4,7 @@ Orchestrate Initial Database Creation Workflows
 
 Overview
 Main ETL workflow to orchestrate the medallion structured pipeline for extracting competition, match and event information from the Statsbombpy package.
-Currently using 2 competitions (FIFA World Cup 2018 & 2022), creating a Data Warehouse to store the data in SQLite.
+Currently using 4 competitions (FIFA World Cup, Euros, Women's World Cup and Women's Euros), creating a Data Warehouse to store the data in SQLite.
 
 
 Workflow Description

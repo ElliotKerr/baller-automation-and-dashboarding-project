@@ -33,7 +33,6 @@ from statsbombpy.api_client import NoAuthWarning
 warnings.filterwarnings("ignore", category=NoAuthWarning)
 
 from statsbombpy import sb
-from sqlalchemy import create_engine
 from datetime import datetime, timedelta, timezone
 import logging
 

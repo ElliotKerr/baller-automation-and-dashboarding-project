@@ -13,7 +13,7 @@ Author
 Elliot Kerr - 05/08/2026
 
 """
-from sqlalchemy import String, Integer, DateTime, Date, text, Boolean, JSON, Float
+from sqlalchemy import String, Integer, Date, text, Boolean, JSON, Float
 import numpy as np
 from statsbombpy import sb
 import pandas as pd
@@ -225,13 +225,25 @@ class Silver():
         Function updates any records in the matches table that have gone to a penalty shootout, as matches doesn't show the penalty shootout winner.
 
         Args:
-        df - The matches dataframe.
+        slv_dict - Dictionary that includes the schema name, engine and connection for the silver database.
+        logger - Formatted Logging Instance "SILVER"
 
         Returns:
-        df - The updated version of the matches df with penalty shootouts decided.
+        No Output
         """
 
-        draws = pd.read_sql_query('SELECT match_id, home_team, away_team FROM matches WHERE competition_stage_ranking > 1 AND winning_team = "Draw"', slv_dict['conn'])
+        draws = pd.read_sql_query('''
+            SELECT 
+                match_id, 
+                home_team, 
+                away_team 
+            FROM 
+                matches 
+            WHERE 
+                competition_stage_ranking > 1 
+            AND 
+                winning_team = "Draw"
+        ''', slv_dict['conn'])
 
         match_ids = draws['match_id'].to_list()
 
@@ -324,9 +336,16 @@ class Silver():
         logger.info(f"Created silver.{table_name} using the cleaned version of bronze.{table_name}")
 
 
-    def create_combined_table(self, slv_dict, logger):
+    def create_combined_table(self, slv_dict: dict, logger: logging):
         """
-        Doc String
+        Function takes the columns from the combined column mapping, adds them to a SQL query and creates the table.
+
+        Args:
+        slv_dict - Dictionary that includes the schema name, engine and connection for the silver database.
+        logger - Formatted Logging Instance "SILVER"
+
+        Returns:
+        No Output
         """
         alias_mapping = {
             'competitions': 'c', 
