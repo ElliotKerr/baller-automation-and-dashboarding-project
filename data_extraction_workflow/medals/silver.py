@@ -115,16 +115,23 @@ def silver_main(
 
             ELSE 99
         END AS INT) AS competition_stage_ranking
+        ,CASE 
+            WHEN competition_stage = '1st Group Stage' THEN 'Group Stage'
+            ELSE competition_stage
+        END AS fixed_competition_stage
         ,0 AS penalty_shootout
         ,0 AS home_pen_score
         ,0 AS away_pen_score
     """
 
     silver_pyclass.clean_bronze_tables(slv_dict, 'matches', logger, matches_additional_query)
-    silver_pyclass.update_penalty_shootout_result(slv_dict)
+    silver_pyclass.update_penalty_shootout_result(slv_dict, logger)
 
 
     silver_pyclass.clean_bronze_tables(slv_dict, 'events', logger)
+
+
+    silver_pyclass.clean_bronze_tables(slv_dict, 'lineups', logger)
 
 
     slv_dict['conn'].execute(text("DETACH DATABASE bronze"))

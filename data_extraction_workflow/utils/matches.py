@@ -214,8 +214,11 @@ class Matches():
 
 
             if match_id_list != []:
+
                 event_pyclass.bronze_events(
                     brz_dict,
+                    competition_id,
+                    season_id,
                     match_id_list,
                     valid_from,
                     valid_to,

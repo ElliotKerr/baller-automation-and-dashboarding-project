@@ -85,6 +85,13 @@ def bronze_main(
 
         last_edited_where_clause = f'WHERE competition_id = {competition_id} AND season_id = {season_id}'
 
+    elif not competition_id is None:
+        competitions = competitions[
+            (competitions['competition_id'] == competition_id)
+        ].copy()
+
+        last_edited_where_clause = f'WHERE competition_id = {competition_id}'
+
 
     competitions['data_valid_from_utc'] = valid_from
     competitions['data_valid_to_utc'] = None
