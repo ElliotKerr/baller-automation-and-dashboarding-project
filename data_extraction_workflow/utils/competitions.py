@@ -13,12 +13,12 @@ Author
 Elliot Kerr - 05/08/2026
 
 """
-from sqlalchemy import String, Integer, DateTime, Boolean, text
+from sqlalchemy import String, Integer, DateTime, Boolean
 import pandas as pd
 from datetime import datetime
 import logging
 
-from utils.general import col_cleaning
+from utils.general import col_cleaning, bronze_update_current_historical_records
 
 class Competitions():
 
@@ -41,43 +41,6 @@ class Competitions():
         "data_valid_to_utc": DateTime,
     }
 
-    def bronze_update_current_historical_records(
-            self, 
-            brz_dict: dict,
-            competitions_df: pd.DataFrame, 
-            data_valid_to: datetime, 
-        ) -> None:
-        """
-        Function updates any records in the competitions table that will have newer records added in the refresh.
-        Updates the data_valid_to_utc field from None to the data_valid_to value.
-
-        Args:
-        brz_dict - Dictionary that includes the schema name, engine and connection for the bronze database.
-        competitions_df - Dataframe containing the records that need to be updated.
-        data_valid_to - Datetime value initialised in the bronze_main function
-
-        Returns:
-        No output
-        """
-        comp_season_tuple = list(zip(*[competitions_df[c] for c in self.composite_keys]))
-
-        update_dvt_col = f"""
-            UPDATE competitions
-            SET data_valid_to_utc = '{data_valid_to}'
-            WHERE {{where_clause}}
-        """
-
-        where_clause = ""
-
-        for comp_id, season_id in comp_season_tuple:
-            where_clause += f'((competition_id = {comp_id}) AND (season_id = {season_id})) OR '
-
-        update_dvt_col_full = update_dvt_col.format(where_clause = where_clause[:-4])
-
-
-        brz_dict['conn'].execute(text(update_dvt_col_full))
-        brz_dict['conn'].commit()
-
 
     def bronze_competitions(
             self, 
@@ -89,10 +52,10 @@ class Competitions():
         ) -> pd.DataFrame:
         """
         Function:
-            - transforms the competitions data that has been loaded from the package
-            - filters for newly updated records
+            - transforms the competitions data that has been loaded from the package, cleaning using the SQLAlchemy column mappings.
+            - filters for newly updated records based on the competition and season ids specified in the main and bronze ETLs
             - updates any old records that are due to be updated
-            - appends the new records to the bronze.competitions table.
+            - appends the new records to the bronze.competitions table
 
         Args:
         brz_dict - Dictionary that includes the schema name, engine and connection for the bronze database.
@@ -132,7 +95,16 @@ class Competitions():
         if not competitions_df.empty:
             logger.info(f"Updating any old records that are being updated.")
             try:
-                self.bronze_update_current_historical_records(brz_dict, competitions_df, data_valid_to)
+                comp_season_tuple = list(zip(*[competitions_df[c] for c in self.composite_keys]))
+
+                where_clause = ""
+
+                for comp_id, season_id in comp_season_tuple:
+                    where_clause += f'((competition_id = {comp_id}) AND (season_id = {season_id})) OR '
+
+                where_clause = where_clause[:-4]
+
+                bronze_update_current_historical_records(brz_dict, 'competitions', where_clause, data_valid_to)
             except:
                 pass
 

@@ -13,15 +13,13 @@ Author
 Elliot Kerr - 11/08/2026
 
 """
-from sqlalchemy import String, Integer, DateTime, Boolean, text
+from sqlalchemy import String, Integer, DateTime
 import pandas as pd
 from datetime import datetime
 import logging
 from statsbombpy import sb
-from typing import List
-import math
 
-from utils.general import col_cleaning
+from utils.general import col_cleaning, bronze_update_current_historical_records
 
 class Lineups():
 
@@ -134,43 +132,6 @@ class Lineups():
 
         return (starting_xi, sub_off, sub_on, removed_due_to_red_card, ended_game)
 
-    def bronze_update_current_historical_records(
-            self, 
-            brz_dict: dict,
-            df: pd.DataFrame, 
-            data_valid_to: datetime, 
-        ) -> None:
-        """
-        Function updates any records in the lineups table that will have newer records added in the refresh.
-        Updates the data_valid_to_utc field from None to the data_valid_to value.
-
-        Args:
-        brz_dict - Dictionary that includes the schema name, engine and connection for the bronze database.
-        df - Dataframe containing the records that need to be updated.
-        data_valid_to - Datetime value initialised in the bronze_main function
-
-        Returns:
-        No output
-        """
-        comp_season_tuple = list(zip(*[df[c] for c in self.composite_keys]))
-
-        update_dvt_col = f"""
-            UPDATE competitions
-            SET data_valid_to_utc = '{data_valid_to}'
-            WHERE {{where_clause}}
-        """
-
-        where_clause = ""
-
-        for comp_id, season_id in comp_season_tuple:
-            where_clause += f'((competition_id = {comp_id}) AND (season_id = {season_id})) OR '
-
-        update_dvt_col_full = update_dvt_col.format(where_clause = where_clause[:-4])
-
-
-        brz_dict['conn'].execute(text(update_dvt_col_full))
-        brz_dict['conn'].commit()
-
     def bronze_lineups(self,
             brz_dict: dict,
             competition_id: int,
@@ -189,6 +150,8 @@ class Lineups():
 
         Args:
         brz_dict - Dictionary that includes the schema name, engine and connection for the bronze database.
+        competition_id - Competition Id
+        season_id - Season Id
         match_id - match ids that we want to extract a lineup for
         valid_from - Datetime value initialised in the bronze_main function
         valid_to - Datetime value initialised in the bronze_main function
@@ -283,10 +246,20 @@ class Lineups():
 
         if not final_lineups.empty:
             logger.info(f"Updating any old records that are being updated.")
-        try:
-            self.bronze_update_current_historical_records(brz_dict, final_lineups, data_valid_to)
-        except:
-            pass
+
+            try:
+                comp_season_tuple = list(zip(*[final_lineups[c] for c in self.composite_keys]))
+
+                where_clause = ""
+
+                for comp_id, season_id in comp_season_tuple:
+                    where_clause += f'((competition_id = {comp_id}) AND (season_id = {season_id})) OR '
+
+                where_clause = where_clause[:-4]
+
+                bronze_update_current_historical_records(brz_dict, 'lineups', where_clause, valid_to)
+            except:
+                pass
 
             logger.info(f"Writing {match_id} into {brz_dict['schema']}.lineups")
 

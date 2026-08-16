@@ -15,7 +15,7 @@ Elliot Kerr - 05/08/2026
 
 from datetime import datetime, date
 import pandas as pd
-from sqlalchemy import String, Integer, DateTime, Float, JSON, Boolean, Date, create_engine
+from sqlalchemy import String, Integer, DateTime, Float, JSON, Boolean, Date, create_engine, text
 
 DB_ENGINE_STRING = 'sqlite:///dbs/{db_name}.db'
 
@@ -96,3 +96,31 @@ def create_db_engine_func(db_name: str, engine_string: str):
         echo=False, 
         # pool_pre_ping=True
     )
+
+def bronze_update_current_historical_records(
+        brz_dict: dict,
+        table_name: String,
+        where_clause: String, 
+        data_valid_to: datetime, 
+    ) -> None:
+    """
+    Function updates any records in the competitions table that will have newer records added in the refresh.
+    Updates the data_valid_to_utc field from None to the data_valid_to value.
+
+    Args:
+    brz_dict - Dictionary that includes the schema name, engine and connection for the bronze database.
+    table_name - Table Name
+    where_clause - SQL where clause to only update the required records
+    data_valid_to - Datetime value initialised in the bronze_main function
+
+    Returns:
+    No output
+    """
+    update_dvt_col = f"""
+        UPDATE {table_name}
+        SET data_valid_to_utc = '{data_valid_to}'
+        WHERE {where_clause}
+    """
+
+    brz_dict['conn'].execute(text(update_dvt_col))
+    brz_dict['conn'].commit()

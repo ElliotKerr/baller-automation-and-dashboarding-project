@@ -13,15 +13,13 @@ Author
 Elliot Kerr - 05/08/2026
 
 """
-from sqlalchemy import String, Integer, DateTime, Date, text
+from sqlalchemy import String, Integer, DateTime, Date
 import pandas as pd
 from datetime import datetime
 import logging
-from typing import List
 from statsbombpy import sb
-import numpy as np
 
-from utils.general import col_cleaning
+from utils.general import col_cleaning, bronze_update_current_historical_records
 from utils.events import Events
 
 class Matches():
@@ -88,35 +86,6 @@ class Matches():
         "data_valid_to_utc": DateTime
     }
 
-    def bronze_update_current_historical_records(
-            self, 
-            brz_dict: dict,
-            match_id_list: List[str], 
-            data_valid_to: datetime, 
-        ) -> None:
-        """
-        Function updates any records in the matches table that will have newer records added in the refresh.
-        Updates the data_valid_to_utc field from None to the data_valid_to value.
-
-        Args:
-        brz_dict - Dictionary that includes the schema name, engine and connection for the bronze database.
-        match_id_list - List of match ids we want to load.
-        data_valid_to - Datetime value initialised in the bronze_main function
-
-        Returns:
-        No output
-        """
-        update_dvt_col_full = f"""
-            UPDATE matches
-            SET data_valid_to_utc = '{data_valid_to}'
-            WHERE match_id IN ({", ".join(f"'{i}'" for i in match_id_list)})
-        """
-
-
-        brz_dict['conn'].execute(text(update_dvt_col_full))
-        brz_dict['conn'].commit()
-
-
     def bronze_matches(
             self,
             event_pyclass: Events,
@@ -128,9 +97,10 @@ class Matches():
         ) -> None:
         """
         Function:
+            - creates a tuple of the competition and season ids
             - load the matches data and clean
             - filters for newly updated records
-            - updates any old records that are due to be updated
+            - updates the data_valid_to_utc field for any old records that are due to be updated
             - appends the new records to the bronze.matches table.
             - starts the events extraction for these matches.
 
@@ -191,8 +161,10 @@ class Matches():
 
                 match_id_list = matches_df['match_id'].tolist()
 
+                where_clause = f"""match_id IN ({", ".join(f"'{i}'" for i in match_id_list)})"""
+
                 try:
-                    self.bronze_update_current_historical_records(brz_dict, match_id_list, valid_to)
+                    bronze_update_current_historical_records(brz_dict, 'matches', where_clause, valid_to)
                 except:
                     pass
 
