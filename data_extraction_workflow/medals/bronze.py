@@ -51,6 +51,7 @@ event_pyclass = Events()
 def bronze_main(
         brz_schema : str, 
         logger: logging, 
+        min_season: str = None,
         competition_id : int = None, 
         season_id : int = None
     ) -> None :
@@ -61,6 +62,7 @@ def bronze_main(
     brz_schema - This is the name of the bronze database, incase another name is preferred for the bronze layer.
     logger - Formatted Logging Instance "BRONZE"
 
+    min_season | None - String that will be used to filter out older seasons with less data included.
     competition_id | None - Exists when specific competitions are required.
     season_id | None - Exists when specific seasons are required.
 
@@ -87,7 +89,8 @@ def bronze_main(
 
     elif not competition_id is None:
         competitions = competitions[
-            (competitions['competition_id'] == competition_id)
+            (competitions['competition_id'] == competition_id) &
+            (competitions['season_name'] >= min_season)
         ].copy()
 
         last_edited_where_clause = f'WHERE competition_id = {competition_id}'

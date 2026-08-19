@@ -1,3 +1,4 @@
 pandas
 statsbombpy
 sqlalchemy
+matplotlib
