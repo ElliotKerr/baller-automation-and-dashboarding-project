@@ -2,7 +2,7 @@
 Gold utils
 
 Overview
-File consists of any functions, variables and dictionaries that relate to the gold layer, collected inside a class to allow for simpler uses in the workflows.
+File consists of any functions, variables, SQL queries and dictionaries that relate to the gold layer, collected inside a class to allow for simpler uses in the workflows.
 
 
 Requirements/Prerequistes
@@ -666,13 +666,13 @@ class Gold():
             logger: logging
         ):
         """
-        Function creates the silver table for the specified table name by only selecting records with data_valid_to_utc NULL.
-        Each time this is ran, the table is dropped and replaced to prevent possible overwriting issues.
+        Function creates the gold tables using the query inputted.
 
         Args:
-        slv_dict - Dictionary that includes the schema name, engine and connection for the silver database.
-        table_name - Name of the table to create in the silver database
-        logger - Formatted Logging Instance "SILVER"
+        gld_dict - Dictionary that includes the schema name, engine and connection for the gold database.
+        query - SQL query that is used to create a SQL table
+        table_name - Name of the table to create in the gold database
+        logger - Formatted Logging Instance " GOLD "
 
         Returns:
         No Output

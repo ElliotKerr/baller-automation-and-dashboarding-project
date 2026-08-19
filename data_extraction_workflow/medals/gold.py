@@ -2,16 +2,15 @@
 Gold Tables Creation ETL
 
 Overview
-ETL orchestrates the silver layer workflows, removing any historical records and creating the combined view
+ETL orchestrates the gold layer workflows, creating each table using the queries in the gold utils file.
 
 Workflow Description
-1. Sets up the engine and connections to the silver database file.
-2. Runs the clean_bronze_tables function from the Silver class to create silver.competitions, .matches and .events
-3. Runs the create_combined_table function from the Silver class to create silver.combined
+1. Creates the gold engine and attaches the silver engine to use the silver cleaned tables
+2. Runs the create_gold function for each query
 
 
 Requirements/Prerequistes
-- utils.general, .silver
+- utils.general, .gold
 - Install requirements.txt
 
 

@@ -13,14 +13,14 @@ Author
 Elliot Kerr - 05/08/2026
 
 """
-from sqlalchemy import String, Integer, DateTime, Date, text, Boolean, JSON, Float
+from sqlalchemy import String, Integer, DateTime, Boolean, JSON, Float
 import pandas as pd
 from datetime import datetime
 import logging
 from typing import List
 from statsbombpy import sb
 
-from utils.general import col_cleaning
+from utils.general import col_cleaning, bronze_update_current_historical_records
 from utils.lineups import Lineups
 
 lineups_pyclass = Lineups()
@@ -167,33 +167,6 @@ class Events():
         "data_valid_to_utc": DateTime
     }
 
-    def bronze_update_current_historical_records(
-            self, 
-            brz_dict: dict, 
-            id_list: List[str], 
-            data_valid_to: datetime
-        ):
-        """
-        Function updates any records in the events table that will have newer records added in the refresh.
-        Updates the data_valid_to_utc field from None to the data_valid_to value.
-
-        Args:
-        brz_dict - Dictionary that includes the schema name, engine and connection for the bronze database.
-        id_list - List
-        data_valid_to - Datetime value initialised in the bronze_main function
-
-        Returns:
-        No output
-        """
-        update_dvt_col = f"""
-            UPDATE events
-            SET data_valid_to_utc = '{data_valid_to}'
-            WHERE id IN ({", ".join(f"'{i}'" for i in id_list)})
-        """
-
-        brz_dict['conn'].execute(text(update_dvt_col))
-        brz_dict['conn'].commit()
-
     def bronze_events(
             self,
             brz_dict: dict,
@@ -213,6 +186,8 @@ class Events():
 
         Args:
         brz_dict - Dictionary that includes the schema name, engine and connection for the bronze database.
+        competition_id - Competition Id used in the lineups function
+        season_id - Season Id used in the lineups function
         match_id_list - List of match ids that we want to extract events for
         valid_from - Datetime value initialised in the bronze_main function
         valid_to - Datetime value initialised in the bronze_main function
@@ -251,8 +226,11 @@ class Events():
                 logger.info(f"Updating any old records that are being updated.")
 
                 id_list = events_df['id'].tolist()
+
+                where_clause = f"""id IN ({", ".join(f"'{i}'" for i in id_list)})"""
+
                 try:
-                    self.bronze_update_current_historical_records(id_list, valid_to, brz_dict)
+                    bronze_update_current_historical_records(brz_dict, 'events', where_clause, valid_to)
                 except:
                     pass
 
